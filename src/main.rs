@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use log::info;
 use reply::json;
+use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{Filter, Rejection, reply};
@@ -46,6 +47,13 @@ struct Article {
   pub description: String
 }
 
+#[derive(Serialize)]
+struct CkziuNews {
+  title: String,
+  description: String,
+  url: String
+}
+
 impl Article {
   fn new(title: String, author: String, description: String) -> Self {
     Self {
@@ -56,7 +64,7 @@ impl Article {
   }
 }
 
-pub async fn create_todo_handler() -> Result<impl warp::Reply, Infallible> {
+pub async fn get_articles_handler() -> Result<impl warp::Reply, Infallible> {
   info!("Article sent!");
   tokio::time::sleep(Duration::from_secs(5)).await;
   Ok(json(&[
@@ -68,10 +76,37 @@ pub async fn create_todo_handler() -> Result<impl warp::Reply, Infallible> {
   ]))
 }
 
+pub async fn get_ckziu_news_handler() -> Result<impl warp::Reply, Infallible> {
+  let response = reqwest::get("https://cez.lodz.pl").await.unwrap();
+  let html_content = response.text().await.unwrap();
+  let document = Html::parse_document(&html_content);
+  let news_selector = Selector::parse("div.event-post").unwrap();
+  let all_news = document.select(&news_selector);
+
+  let mut parsed_news: Vec<CkziuNews> = Vec::new();
+
+  for news in all_news {
+    let a = news.select(&Selector::parse("a").unwrap()).next().unwrap();
+
+    let url: String = a.value().attr("href").unwrap().into();
+    let title: String = a.text().next().unwrap().into();
+
+    let p = news.select(&Selector::parse("p").unwrap()).next().unwrap();
+    let description: String = p.text().next().unwrap().into();
+
+    parsed_news.push(CkziuNews {
+      title,
+      url,
+      description
+    });
+  }
+
+  Ok(json(&parsed_news))
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-  // env_logger::init();
   let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "tracing=info,warp=debug".to_owned());
 
   tracing_subscriber::fmt()
@@ -81,10 +116,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let address: SocketAddr = "25.50.65.38:3030".parse().expect("Failed to parse address.");
 
-  let cors = warp::cors()
-    .allow_any_origin();
-
-  // GET /hello/warp => 200 OK with body "Hello, warp!"
   let hello = warp::path!("hello" / String)
     .map(|name| format!("Hello, {}!", name));
 
@@ -98,7 +129,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }));
 
   let articles = warp::path!("article")
-    .and_then(create_todo_handler);
+    .and_then(get_articles_handler);
+
+  let ckziu_news = warp::path!("ckziu" / "news")
+    .and_then(get_ckziu_news_handler);
 
   let auth = warp::path!("auth")
     .map(|| {
@@ -110,6 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       hello
         .or(status)
         .or(articles)
+        .or(ckziu_news)
     )
     .with(warp::cors().allow_any_origin());
 
