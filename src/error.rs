@@ -1,5 +1,6 @@
-use serde::Serialize;
 use std::convert::Infallible;
+
+use serde::Serialize;
 use thiserror::Error;
 use warp::{http::StatusCode, Rejection, Reply};
 

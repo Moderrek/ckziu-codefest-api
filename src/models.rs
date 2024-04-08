@@ -32,17 +32,6 @@ pub struct User {
   pub name: String,
 }
 
-#[derive(Deserialize)]
-pub struct LoginRequest {
-  pub email: String,
-}
-
-#[derive(Serialize)]
-pub struct LoginResponse {
-  pub token: Option<String>,
-  pub message: String,
-}
-
 #[derive(Serialize)]
 pub struct Article {
   pub title: String,

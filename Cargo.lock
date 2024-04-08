@@ -245,6 +245,7 @@ dependencies = [
  "jsonwebtoken",
  "lettre",
  "log",
+ "rand",
  "reqwest",
  "rustls-webpki 0.102.2",
  "scraper",

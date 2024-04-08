@@ -1,4 +1,5 @@
 use scraper::{Html, Selector};
+
 use crate::models::CkziuNews;
 
 pub async fn async_scrap_cez_news() -> Vec<CkziuNews> {

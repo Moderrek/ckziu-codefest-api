@@ -1,24 +1,30 @@
-mod error;
-mod mail;
-mod auth;
-mod models;
-mod scrap;
-mod database;
+#[macro_use]
+extern crate dotenv_codegen;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
+
 use dotenv::dotenv;
 use log::{error, info, warn};
 use reply::json;
 use tokio::sync::RwLock;
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{Filter, Rejection, reply, Reply};
+
 use error::Error;
-use crate::auth::auth_handler;
+
+use crate::auth::{auth_login_handler, auth_otp_handler, auth_register_handler, OTPData};
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus, User};
 use crate::scrap::async_scrap_cez_news;
+
+mod error;
+mod mail;
+mod auth;
+mod models;
+mod scrap;
+mod database;
 
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
@@ -89,9 +95,6 @@ pub async fn trending_projects_handler() -> WebResult<impl Reply> {
   ]))
 }
 
-#[macro_use]
-extern crate dotenv_codegen;
-
 #[tokio::main]
 async fn main() -> Result<()> {
   tracing_subscriber::fmt()
@@ -130,6 +133,12 @@ async fn main() -> Result<()> {
   info!("API URL: {}://{}:{}", if using_tls { "https" } else { "http" }, domain, port);
   let address: SocketAddr = format!("{domain}:{port}").parse().expect("Failed to parse address.");
 
+  let users: Users = Arc::new(RwLock::new(HashMap::new()));
+  let users = warp::any().map(move || users.clone());
+
+  let otp_codes: Arc<RwLock<HashMap<String, OTPData>>> = Arc::new(RwLock::new(HashMap::new()));
+  let otp_codes = warp::any().map(move || otp_codes.clone());
+
   let status = warp::path!("status")
     .map(|| json(&ServerStatus {
       name: "ckziu-codefest-api".into(),
@@ -156,10 +165,22 @@ async fn main() -> Result<()> {
     .and(warp::get())
     .and_then(trending_projects_handler);
 
-  let auth = warp::path!("auth")
+  let auth_otp = warp::path!("auth" / "otp")
     .and(warp::post())
     .and(warp::body::json())
-    .and_then(auth_handler);
+    .and(otp_codes.clone())
+    .and_then(auth_otp_handler);
+
+  let auth_login = warp::path!("auth" / "login")
+    .and(warp::post())
+    .and(warp::body::json())
+    .and(otp_codes)
+    .and_then(auth_login_handler);
+
+  let auth_register = warp::path!("auth" / "register")
+    .and(warp::post())
+    .and(warp::body::json())
+    .and_then(auth_register_handler);
 
   let cors = warp::cors()
     .allow_any_origin()
@@ -173,7 +194,9 @@ async fn main() -> Result<()> {
   let options_route = warp::options()
     .map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
 
-  let routes = auth
+  let routes = auth_login
+    .or(auth_register)
+    .or(auth_otp)
     .or(status)
     .or(ckziu_news)
     .or(articles)
