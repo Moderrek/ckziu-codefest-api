@@ -1,77 +1,28 @@
 mod error;
+mod mail;
+mod auth;
+mod models;
+mod scrap;
+mod database;
 
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
-use chrono::Utc;
-use jsonwebtoken::{Algorithm, encode, EncodingKey, Header};
-use log::info;
+use dotenv::dotenv;
+use log::{error, info, warn};
 use reply::json;
-use scraper::{Html, Selector};
-use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing_subscriber::fmt::format;
 use tracing_subscriber::fmt::format::FmtSpan;
 use warp::{Filter, Rejection, reply, Reply};
+use error::Error;
+use crate::auth::auth_handler;
+use crate::models::{Article, Project, ServerServiceStatus, ServerStatus, User};
+use crate::scrap::async_scrap_cez_news;
 
-type Result<T> = std::result::Result<T, error::Error>;
+type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
 type Users = Arc<RwLock<HashMap<String, User>>>;
-
-#[derive(Serialize)]
-struct ServerServiceStatus {
-  login_service: bool,
-}
-
-#[derive(Serialize)]
-struct ServerStatus {
-  name: String,
-  version: String,
-  services: ServerServiceStatus,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct User {
-  pub uid: String,
-  pub name: String,
-}
-
-#[derive(Deserialize)]
-pub struct LoginRequest {
-  pub email: String
-}
-
-#[derive(Serialize)]
-pub struct LoginResponse {
-  pub token: Option<String>,
-  pub message: String,
-}
-
-#[derive(Serialize)]
-struct Article {
-  pub title: String,
-  pub author: String,
-  pub description: String
-}
-
-#[derive(Serialize)]
-struct CkziuNews {
-  title: String,
-  description: String,
-  url: String
-}
-
-impl Article {
-  fn new(title: String, author: String, description: String) -> Self {
-    Self {
-      title,
-      author,
-      description
-    }
-  }
-}
 
 pub async fn get_articles_handler() -> WebResult<impl Reply> {
   info!("Article sent!");
@@ -85,112 +36,125 @@ pub async fn get_articles_handler() -> WebResult<impl Reply> {
 }
 
 pub async fn get_ckziu_news_handler() -> WebResult<impl Reply> {
-  let response = reqwest::get("https://cez.lodz.pl").await.unwrap();
-  let html_content = response.text().await.unwrap();
-  let document = Html::parse_document(&html_content);
-  let news_selector = Selector::parse("div.event-post").unwrap();
-  let all_news = document.select(&news_selector);
-
-  let mut parsed_news: Vec<CkziuNews> = Vec::new();
-
-  for news in all_news {
-    let a = news.select(&Selector::parse("a").unwrap()).next().unwrap();
-
-    let url: String = a.value().attr("href").unwrap().into();
-    let title: String = a.text().next().unwrap().into();
-
-    let p = news.select(&Selector::parse("p").unwrap()).next().unwrap();
-    let description: String = p.text().next().unwrap().into();
-
-    parsed_news.push(CkziuNews {
-      title,
-      url,
-      description
-    });
-  }
-
-  Ok(json(&parsed_news))
+  info!("Scraping articles!");
+  let news = async_scrap_cez_news().await;
+  Ok(json(&news))
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Claims {
-  uid: String,
-  role: String,
-  exp: usize,
+pub async fn trending_projects_handler() -> WebResult<impl Reply> {
+  info!("Trending projects!");
+  Ok(json(&[
+    Project {
+      display_name: "Moderrkowo".into(),
+      author: "moderr".into(),
+      description: "Serwer Minecraft".into(),
+      thumbnail_url: "https://static.planetminecraft.com/files/image/minecraft/server/2021/704/14581861-image_l.jpg".into(),
+      likes: 0,
+    },
+    Project {
+      display_name: "C-Edit".into(),
+      author: "drakvlaa".into(),
+      description: "C++ program to make custom cmd shortcut commands".into(),
+      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
+      likes: 2,
+    },
+    Project {
+      display_name: "KittyCode".into(),
+      author: "drakvlaa".into(),
+      description: "Edytor kodu uwu".into(),
+      thumbnail_url: "https://media.pocketgamer.com/artwork/na-33163-1629209861/Kitty-redeem-codes-header_jpeg_820.jpg".into(),
+      likes: 64420420,
+    },
+    Project {
+      display_name: "C-Edit".into(),
+      author: "drakvlaa".into(),
+      description: "C++ program to make custom cmd shortcut commands".into(),
+      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
+      likes: 7,
+    },
+    Project {
+      display_name: "C-Edit".into(),
+      author: "drakvlaa".into(),
+      description: "C++ program to make custom cmd shortcut commands".into(),
+      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
+      likes: 2,
+    },
+    Project {
+      display_name: "ClaraEngine".into(),
+      author: "drakvlaa".into(),
+      description: "Silnik 3D do tworzenia gier video na platformę Windows.".into(),
+      thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQz3e4j2AY0Rn7SFpOpQyge9MebJK8BvlI4UhnU9RNgxQ&s".into(),
+      likes: 3,
+    }
+  ]))
 }
 
-pub fn create_jwt(uid: &str, role: &str) -> Result<String> {
-  let expiration = Utc::now()
-    .checked_add_signed(chrono::Duration::seconds(60))
-    .expect("Valid timestamp")
-    .timestamp();
-
-  let claims = Claims {
-    uid: uid.into(),
-    role: role.into(),
-    exp: expiration as usize
-  };
-
-  let header = Header::new(Algorithm::HS512);
-  Ok(encode(&header, &claims, &EncodingKey::from_secret(b"secret")).unwrap())
-}
-
-pub async fn auth_handler(body: LoginRequest) -> WebResult<impl Reply> {
-  tokio::time::sleep(Duration::from_secs(5)).await;
-  println!("Email: {}", body.email);
-  if !body.email.ends_with("ckziu.elodz.edu.pl") {
-    // return Err(warp::reject::custom(error::Error::WrongCredentialsError));
-    return Ok(json(
-      &LoginResponse {
-        token: None,
-        message: "Nieprawidłowy email".into()
-      }
-    ));
-  }
-  Ok(json(&LoginResponse{
-    token: Some(create_jwt(body.email.as_str(), "user").unwrap()),
-    message: "Pomyślnie zalogowano".into()
-  }))
-}
+#[macro_use]
+extern crate dotenv_codegen;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  let filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "tracing=debug,warp=debug".to_owned());
-
   tracing_subscriber::fmt()
-    .with_env_filter(filter)
     .with_span_events(FmtSpan::CLOSE)
     .init();
 
-  let address: SocketAddr = "25.50.65.38:8080".parse().expect("Failed to parse address.");
-
-  let pool = sqlx::postgres::PgPoolOptions::new()
-    .max_connections(1)
-    .connect("postgres://avnadmin:AVNS_vcH6CYuY4vN7Ayg8DoB@pg-1c46544a-tymonek12345-153d.a.aivencloud.com:25654/defaultdb?sslmode=require").await.unwrap();
-
-  let row: (i64,) = sqlx::query_as("SELECT $1")
-    .bind(150_i64)
-    .fetch_one(&pool).await.unwrap();
-
-  println!("{:?}", row);
-
-  let hello = warp::path!("hello" / String)
-    .map(|name| format!("Hello, {}!", name));
+  info!("Starting CKZiU CodeFest Backend API Server");
+  info!("Created fully by Tymon Woźniak");
+  let working_dir = std::env::current_dir().expect("Failed to load current directory.");
+  info!("The current directory is {}", working_dir.display());
+  info!("Loading \".env\"");
+  dotenv().ok().unwrap();
+  let using_tls: bool = dotenv!("USE_TLS") == "true";
+  let cert_path = dotenv!("CERT_PATH");
+  let key_path = dotenv!("KEY_PATH");
+  if using_tls {
+    info!("Using TLS");
+    let mut success = true;
+    if !Path::new(cert_path).exists() {
+      error!("Cannot find certificate file! @ {}", Path::new(cert_path).display());
+      success = false;
+    }
+    if !Path::new(key_path).exists() {
+      error!("Cannot find key file! @ {}", Path::new(key_path).display());
+      success = false;
+    }
+    if !success {
+      return Err(Error::CannotFindFile);
+    }
+    info!("Cert: {}; Key: {}", cert_path, key_path);
+  } else {
+    warn!("Server is not using TLS!");
+  }
+  let domain = dotenv!("DOMAIN");
+  let port = dotenv!("PORT");
+  info!("API URL: {}://{}:{}", if using_tls { "https" } else { "http" }, domain, port);
+  let address: SocketAddr = format!("{domain}:{port}").parse().expect("Failed to parse address.");
 
   let status = warp::path!("status")
     .map(|| json(&ServerStatus {
       name: "ckziu-codefest-api".into(),
+      author: "Tymon Woźniak".into(),
       version: "dev-0.1".into(),
       services: ServerServiceStatus {
-        login_service: false
+        database: false,
+        mail: false,
+        login_service: false,
+        cez_website: false,
+        gateway: false,
       },
     }));
 
   let articles = warp::path!("article")
+    .and(warp::get())
     .and_then(get_articles_handler);
 
   let ckziu_news = warp::path!("ckziu" / "news")
+    .and(warp::get())
     .and_then(get_ckziu_news_handler);
+
+  let trending_projects = warp::path!("trending" / "projects")
+    .and(warp::get())
+    .and_then(trending_projects_handler);
 
   let auth = warp::path!("auth")
     .and(warp::post())
@@ -202,17 +166,41 @@ async fn main() -> Result<()> {
     .allow_headers(vec![
       "User-Agent", "Sec-Fetch-Mode", "Referer", "Origin",
       "Access-Control-Request-Method", "Access-Control-Request-Headers",
-      "Content-Type"
+      "Content-Type",
     ])
     .allow_methods(vec!["POST", "GET"]);
 
   let options_route = warp::options()
-    .map(|| warp::reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
+    .map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
 
-  let routes = auth.or(articles).or(options_route).with(cors);
-  warp::serve(routes)
-    .run(address)
-    .await;
+  let routes = auth
+    .or(status)
+    .or(ckziu_news)
+    .or(articles)
+    .or(options_route)
+    .or(trending_projects)
+    .recover(error::handle_rejection)
+    .with(cors);
+
+  info!("Created routes");
+
+  match using_tls {
+    true => {
+      info!("Serving with TLS..");
+      warp::serve(routes)
+        .tls()
+        .cert_path(cert_path)
+        .key_path(key_path)
+        .run(address)
+        .await;
+    }
+    false => {
+      info!("Serving..");
+      warp::serve(routes)
+        .run(address)
+        .await;
+    }
+  }
 
   Ok(())
 }

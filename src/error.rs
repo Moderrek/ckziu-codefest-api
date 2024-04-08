@@ -6,17 +6,19 @@ use warp::{http::StatusCode, Rejection, Reply};
 #[derive(Error, Debug)]
 pub enum Error {
   #[error("wrong credentials")]
-  WrongCredentialsError,
+  WrongCredentials,
   #[error("jwt token not valid")]
-  JWTTokenError,
+  JWTToken,
   #[error("jwt token creation error")]
-  JWTTokenCreationError,
+  JWTTokenCreation,
   #[error("no auth header")]
-  NoAuthHeaderError,
+  NoAuthHeader,
   #[error("invalid auth header")]
-  InvalidAuthHeaderError,
+  InvalidAuthHeader,
   #[error("no permission")]
-  NoPermissionError,
+  NoPermission,
+  #[error("Cannot find file")]
+  CannotFindFile,
 }
 
 #[derive(Serialize, Debug)]
@@ -27,15 +29,15 @@ struct ErrorResponse {
 
 impl warp::reject::Reject for Error {}
 
-pub async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
+pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> {
   let (code, message) = if err.is_not_found() {
     (StatusCode::NOT_FOUND, "Not Found".to_string())
   } else if let Some(e) = err.find::<Error>() {
     match e {
-      Error::WrongCredentialsError => (StatusCode::FORBIDDEN, e.to_string()),
-      Error::NoPermissionError => (StatusCode::UNAUTHORIZED, e.to_string()),
-      Error::JWTTokenError => (StatusCode::UNAUTHORIZED, e.to_string()),
-      Error::JWTTokenCreationError => (
+      Error::WrongCredentials => (StatusCode::FORBIDDEN, e.to_string()),
+      Error::NoPermission => (StatusCode::UNAUTHORIZED, e.to_string()),
+      Error::JWTToken => (StatusCode::UNAUTHORIZED, e.to_string()),
+      Error::JWTTokenCreation => (
         StatusCode::INTERNAL_SERVER_ERROR,
         "Internal Server Error".to_string(),
       ),
