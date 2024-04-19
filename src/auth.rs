@@ -10,8 +10,8 @@ use tokio::sync::RwLock;
 use warp::Reply;
 use warp::reply::json;
 
-use crate::{WebResult};
 use crate::mail::send_otp_code;
+use crate::WebResult;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Claims {
@@ -71,7 +71,12 @@ pub fn create_jwt(uid: &str, role: &str) -> crate::Result<String> {
   };
 
   let header = Header::new(Algorithm::HS512);
-  Ok(encode(&header, &claims, &EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes())).unwrap())
+  Ok(encode(
+    &header,
+    &claims,
+    &EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes()),
+  )
+    .unwrap())
 }
 
 fn generate_otp(length: usize) -> String {
@@ -91,7 +96,10 @@ pub struct OTPData {
   pub expired: DateTime<Utc>,
 }
 
-pub async fn auth_otp_handler(body: OTPRequest, otp_codes: Arc<RwLock<HashMap<String, OTPData>>>) -> WebResult<impl Reply> {
+pub async fn auth_otp_handler(
+  body: OTPRequest,
+  otp_codes: Arc<RwLock<HashMap<String, OTPData>>>,
+) -> WebResult<impl Reply> {
   println!("OTP -> Email: {}", body.email);
   // if !body.email.ends_with("ckziu.elodz.edu.pl") {
   //   // return Err(warp::reject::custom(error::Error::WrongCredentialsError));
@@ -109,10 +117,13 @@ pub async fn auth_otp_handler(body: OTPRequest, otp_codes: Arc<RwLock<HashMap<St
     .checked_add_signed(chrono::Duration::seconds(60))
     .expect("Valid timestamp");
 
-  otp_codes.write().await.insert(body.email.clone(), OTPData {
-    code: otp.clone(),
-    expired: expiration,
-  });
+  otp_codes.write().await.insert(
+    body.email.clone(),
+    OTPData {
+      code: otp.clone(),
+      expired: expiration,
+    },
+  );
 
   info!("{} | OTP = {}", body.email, &otp);
   tokio::spawn(async move {
@@ -127,7 +138,10 @@ pub async fn auth_otp_handler(body: OTPRequest, otp_codes: Arc<RwLock<HashMap<St
   }))
 }
 
-pub async fn auth_login_handler(body: LoginRequest, otp_codes: Arc<RwLock<HashMap<String, OTPData>>>) -> WebResult<impl Reply> {
+pub async fn auth_login_handler(
+  body: LoginRequest,
+  otp_codes: Arc<RwLock<HashMap<String, OTPData>>>,
+) -> WebResult<impl Reply> {
   info!("LOGIN @ {} | with code = {}", &body.email, &body.otp);
 
   return match otp_codes.clone().read().await.get(&body.email.clone()) {

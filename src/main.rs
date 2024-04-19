@@ -5,26 +5,32 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
+use chrono::Utc;
 
 use dotenv::dotenv;
 use log::{error, info, warn};
 use reply::json;
 use tokio::sync::RwLock;
 use tracing_subscriber::fmt::format::FmtSpan;
+use uuid::Uuid;
 use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
 use crate::auth::{auth_login_handler, auth_otp_handler, auth_register_handler, OTPData};
+use crate::database::database_handler;
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus, User};
 use crate::scrap::async_scrap_cez_news;
+use crate::users::{CodeFestUser, db_insert_user};
 
+mod auth;
+mod database;
 mod error;
 mod mail;
-mod auth;
 mod models;
 mod scrap;
-mod database;
+pub mod users;
+mod projects;
 
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
@@ -33,11 +39,31 @@ type Users = Arc<RwLock<HashMap<String, User>>>;
 pub async fn get_articles_handler() -> WebResult<impl Reply> {
   info!("Article sent!");
   Ok(json(&[
-    Article::new("CKZiU CodeFest API".into(), "Tymon Woźniak".into(), "Uruchomienie API!".into()),
-    Article::new("Tytuł".into(), "Tymon Woźniak".into(), "Opis wspierający UTF-8".into()),
-    Article::new("Testowy artytuł".into(), "Tymon Woźniak".into(), "Opis wspierający UTF-8".into()),
-    Article::new("Testowy artytuł".into(), "Tymon Woźniak".into(), "Opis wspierający UTF-8".into()),
-    Article::new("Testowy artytuł".into(), "Tymon Woźniak".into(), "Opis wspierający UTF-8".into())
+    Article::new(
+      "CKZiU CodeFest API".into(),
+      "Tymon Woźniak".into(),
+      "Uruchomienie API!".into(),
+    ),
+    Article::new(
+      "Tytuł".into(),
+      "Tymon Woźniak".into(),
+      "Opis wspierający UTF-8".into(),
+    ),
+    Article::new(
+      "Testowy artytuł".into(),
+      "Tymon Woźniak".into(),
+      "Opis wspierający UTF-8".into(),
+    ),
+    Article::new(
+      "Testowy artytuł".into(),
+      "Tymon Woźniak".into(),
+      "Opis wspierający UTF-8".into(),
+    ),
+    Article::new(
+      "Testowy artytuł".into(),
+      "Tymon Woźniak".into(),
+      "Opis wspierający UTF-8".into(),
+    ),
   ]))
 }
 
@@ -114,7 +140,10 @@ async fn main() -> Result<()> {
     info!("Using TLS");
     let mut success = true;
     if !Path::new(cert_path).exists() {
-      error!("Cannot find certificate file! @ {}", Path::new(cert_path).display());
+      error!(
+                "Cannot find certificate file! @ {}",
+                Path::new(cert_path).display()
+            );
       success = false;
     }
     if !Path::new(key_path).exists() {
@@ -130,8 +159,36 @@ async fn main() -> Result<()> {
   }
   let domain = dotenv!("DOMAIN");
   let port = dotenv!("PORT");
-  info!("API URL: {}://{}:{}", if using_tls { "https" } else { "http" }, domain, port);
-  let address: SocketAddr = format!("{domain}:{port}").parse().expect("Failed to parse address.");
+  info!(
+        "API URL: {}://{}:{}",
+        if using_tls { "https" } else { "http" },
+        domain,
+        port
+    );
+  let address: SocketAddr = format!("{domain}:{port}")
+    .parse()
+    .expect("Failed to parse address.");
+
+  let db_pool = database::create_pool().await.unwrap();
+  // db_insert_user(&CodeFestUser {
+  //   name: "moderr".to_string(),
+  //   display_name: "Moderr".to_string(),
+  //   id: Uuid::new_v4(),
+  //   bio: None,
+  //   created_at: Utc::now(),
+  //   updated_at: Utc::now(),
+  //   flags: 0,
+  // }, &db_pool).await.unwrap();
+  // db_insert_user(&CodeFestUser {
+  //   name: "drakvlaa".to_string(),
+  //   display_name: "Dr Akula".to_string(),
+  //   id: Uuid::new_v4(),
+  //   bio: None,
+  //   created_at: Utc::now(),
+  //   updated_at: Utc::now(),
+  //   flags: 0,
+  // }, &db_pool).await.unwrap();
+  let with_db = warp::any().map(move || db_pool.clone());
 
   let users: Users = Arc::new(RwLock::new(HashMap::new()));
   let users = warp::any().map(move || users.clone());
@@ -139,19 +196,22 @@ async fn main() -> Result<()> {
   let otp_codes: Arc<RwLock<HashMap<String, OTPData>>> = Arc::new(RwLock::new(HashMap::new()));
   let otp_codes = warp::any().map(move || otp_codes.clone());
 
-  let status = warp::path!("status")
-    .map(|| json(&ServerStatus {
+  let version1 = warp::path!("v1" / ..);
+
+  let status = warp::path!("status").map(|| {
+    json(&ServerStatus {
       name: "ckziu-codefest-api".into(),
       author: "Tymon Woźniak".into(),
       version: "dev-0.1".into(),
       services: ServerServiceStatus {
         database: false,
         mail: false,
-        login_service: false,
+        login_service: true,
         cez_website: false,
         gateway: false,
       },
-    }));
+    })
+  });
 
   let articles = warp::path!("article")
     .and(warp::get())
@@ -165,19 +225,21 @@ async fn main() -> Result<()> {
     .and(warp::get())
     .and_then(trending_projects_handler);
 
-  let auth_otp = warp::path!("auth" / "otp")
+  let auth = warp::path!("auth" / ..);
+
+  let auth_otp = warp::path!("otp")
     .and(warp::post())
     .and(warp::body::json())
     .and(otp_codes.clone())
     .and_then(auth_otp_handler);
 
-  let auth_login = warp::path!("auth" / "login")
+  let auth_login = warp::path!("login")
     .and(warp::post())
     .and(warp::body::json())
     .and(otp_codes)
     .and_then(auth_login_handler);
 
-  let auth_register = warp::path!("auth" / "register")
+  let auth_register = warp::path!("register")
     .and(warp::post())
     .and(warp::body::json())
     .and_then(auth_register_handler);
@@ -185,23 +247,39 @@ async fn main() -> Result<()> {
   let cors = warp::cors()
     .allow_any_origin()
     .allow_headers(vec![
-      "User-Agent", "Sec-Fetch-Mode", "Referer", "Origin",
-      "Access-Control-Request-Method", "Access-Control-Request-Headers",
+      "User-Agent",
+      "Sec-Fetch-Mode",
+      "Referer",
+      "Origin",
+      "Access-Control-Request-Method",
+      "Access-Control-Request-Headers",
       "Content-Type",
     ])
     .allow_methods(vec!["POST", "GET"]);
 
-  let options_route = warp::options()
-    .map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
+  let options_route =
+    warp::options().map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
 
-  let routes = auth_login
-    .or(auth_register)
-    .or(auth_otp)
+  let db_test = warp::path!("dbtest")
+    .and(with_db.clone())
+    .and_then(database_handler);
+
+  let users_get = warp::path!("users" / String)
+    .and(with_db.clone())
+    .and_then(users::api_get_user);
+
+  let routes = version1
+    .and(
+      auth.and(auth_login.or(auth_register).or(auth_otp))
+        .or(db_test)
+        .or(status)
+        .or(ckziu_news)
+        .or(articles)
+        .or(options_route)
+        .or(trending_projects)
+        .or(users_get),
+    )
     .or(status)
-    .or(ckziu_news)
-    .or(articles)
-    .or(options_route)
-    .or(trending_projects)
     .recover(error::handle_rejection)
     .with(cors);
 
@@ -219,9 +297,7 @@ async fn main() -> Result<()> {
     }
     false => {
       info!("Serving..");
-      warp::serve(routes)
-        .run(address)
-        .await;
+      warp::serve(routes).run(address).await;
     }
   }
 
