@@ -15,7 +15,7 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
-use crate::auth::{auth_login_handler, auth_otp_handler, auth_register_handler, OTPData};
+use crate::auth::{auth_exists_handler, auth_login_handler, auth_otp_handler, auth_register_handler, OTPData};
 use crate::database::database_handler;
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus, User};
 use crate::scrap::async_scrap_cez_news;
@@ -167,6 +167,7 @@ async fn main() -> Result<()> {
     .parse()
     .expect("Failed to parse address.");
 
+  info!("Init database pool..");
   let db_pool = database::create_pool().await.unwrap();
   // db_insert_user(&CodeFestUser {
   //   name: "moderr".to_string(),
@@ -237,6 +238,10 @@ async fn main() -> Result<()> {
     .and(otp_codes)
     .and_then(auth_login_handler);
 
+  let auth_exists = warp::path!("exists" / String)
+    .and(with_db.clone())
+    .and_then(auth_exists_handler);
+
   let auth_register = warp::path!("register")
     .and(warp::post())
     .and(warp::body::json())
@@ -269,7 +274,7 @@ async fn main() -> Result<()> {
 
   let routes = version1
     .and(
-      auth.and(auth_login.or(auth_register).or(auth_otp))
+      auth.and(auth_login.or(auth_register).or(auth_otp).or(auth_exists))
         .or(db_test)
         .or(status)
         .or(ckziu_news)
