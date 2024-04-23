@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use chrono::serde::ts_milliseconds;
 use log::info;
-use sqlx::{FromRow, PgPool, Pool, Postgres};
-use sqlx::postgres::PgSeverity::Error;
+use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 use warp::reject;
-use crate::{error, WebResult};
 use warp::reply::{json, Reply};
+
+use crate::{error, WebResult};
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct CodeFestUser {
@@ -26,7 +26,6 @@ pub struct CodeFestUser {
 }
 
 impl CodeFestUser {
-
   pub fn is_flag_set(&self, index: u32) -> bool {
     1 == (self.flags & 1 << index)
   }
@@ -65,7 +64,6 @@ impl CodeFestUser {
   pub fn set_teacher(&mut self, turn_on: bool) {
     self.set_flag(2, turn_on)
   }
-
 }
 
 pub async fn db_insert_user(user: &CodeFestUser, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {

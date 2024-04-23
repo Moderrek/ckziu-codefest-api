@@ -6,6 +6,7 @@ use jsonwebtoken::{Algorithm, encode, EncodingKey, Header};
 use log::info;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use tokio::sync::RwLock;
 use warp::Reply;
 use warp::reply::json;
@@ -188,7 +189,7 @@ pub async fn auth_login_handler(
   };
 }
 
-pub async fn auth_register_handler(body: RegisterRequest) -> WebResult<impl Reply> {
+pub async fn auth_register_handler(body: RegisterRequest, pool: PgPool) -> WebResult<impl Reply> {
   Ok(json(&RegisterResponse {
     success: false,
     token: None,

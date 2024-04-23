@@ -1,9 +1,9 @@
+use lettre::{Message, SmtpTransport, Transport};
 use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::{Message, SmtpTransport, Transport};
 
 pub fn send_otp_code(code: String, receiver: String) {
-    let email = Message::builder()
+  let email = Message::builder()
     .from("CKZiU CodeFest <noreply@ckziucodefest.pl>".parse().unwrap())
     .to(receiver.parse().unwrap())
     .subject("[CODEFEST] Twój jednorazowy kod autoryzacyjny")
@@ -209,7 +209,7 @@ img,p{margin:0;Margin:0;font-family:Lato,BlinkMacSystemFont,Segoe UI,Helvetica N
 <!--[if !mso]><!--><td class=t28 style="width:350px;">
 <!--<![endif]-->
 <!--[if mso]><td class=t28 style="width:350px;"><![endif]-->
-<p class=t27 style="margin:0;Margin:0;font-family:Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height:19px;font-weight:400;font-style:normal;font-size:12px;text-decoration:none;text-transform:none;direction:ltr;color:#BBBBBB;text-align:center;mso-line-height-rule:exactly;mso-text-raise:2px;">Flash is a webtool that is a free open source JavaScript framework that can be accessed from a browser or mobile device in a Web browser.</p></td>
+<p class=t27 style="margin:0;Margin:0;font-family:Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height:19px;font-weight:400;font-style:normal;font-size:12px;text-decoration:none;text-transform:none;direction:ltr;color:#BBBBBB;text-align:center;mso-line-height-rule:exactly;mso-text-raise:2px;"></p></td>
 </tr></table>
 </td></tr><tr><td><div class=t30 style="mso-line-height-rule:exactly;mso-line-height-alt:20px;line-height:20px;font-size:1px;display:block;">&nbsp;</div></td></tr><tr><td>
 <table class=t33 role=presentation cellpadding=0 cellspacing=0 align=center><tr>
@@ -229,14 +229,14 @@ img,p{margin:0;Margin:0;font-family:Lato,BlinkMacSystemFont,Segoe UI,Helvetica N
 </html>"#)
     .unwrap();
 
-    let mailer: SmtpTransport = SmtpTransport::relay("ssl0.ovh.net")
-        .expect("Failed to connect to SMTP")
-        .credentials(Credentials::new(
-            "noreply@ckziucodefest.pl".into(),
-            "FJWuSbmWKeRpePqX".into(),
-        ))
-        .build();
+  let mailer: SmtpTransport = SmtpTransport::relay("ssl0.ovh.net")
+    .expect("Failed to connect to SMTP")
+    .credentials(Credentials::new(
+      "noreply@ckziucodefest.pl".into(),
+      "FJWuSbmWKeRpePqX".into(),
+    ))
+    .build();
 
-    let result = mailer.send(&email);
-    println!("{:?}", result);
+  let result = mailer.send(&email);
+  println!("{:?}", result);
 }
