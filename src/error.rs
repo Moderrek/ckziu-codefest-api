@@ -22,6 +22,12 @@ pub enum Error {
   CannotFindFile,
   #[error("Not Found")]
   NotFound,
+  #[error("User Not Found")]
+  UserNotFound,
+  #[error("Project Not Found")]
+  ProjectNotFound,
+  #[error("Server Problem")]
+  ServerProblem,
 }
 
 #[derive(Serialize, Debug)]

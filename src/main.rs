@@ -15,9 +15,8 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
-use crate::auth::{auth_exists_handler, auth_login_handler, auth_otp_handler, auth_register_handler, OTPData};
-use crate::database::database_handler;
-use crate::models::{Article, Project, ServerServiceStatus, ServerStatus, User};
+use crate::auth::{auth_exists_handler, auth_login_handler, auth_otp_handler, auth_register_handler, OTPData, with_auth};
+use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
 
 mod auth;
@@ -26,13 +25,11 @@ mod error;
 mod mail;
 mod models;
 mod scrap;
-pub mod users;
-mod projects;
-mod routes;
+mod user;
+mod project;
 
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
-type Users = Arc<RwLock<HashMap<String, User>>>;
 
 pub async fn get_articles_handler() -> WebResult<impl Reply> {
   info!("Article sent!");
@@ -67,7 +64,7 @@ pub async fn get_articles_handler() -> WebResult<impl Reply> {
 
 pub async fn get_ckziu_news_handler() -> WebResult<impl Reply> {
   info!("Scraping articles!");
-  let news = async_scrap_cez_news().await;
+  let news = async_scrap_cez_news().await.unwrap();
   Ok(json(&news))
 }
 
@@ -169,28 +166,7 @@ async fn main() -> Result<()> {
 
   info!("Init database pool..");
   let db_pool = database::create_pool().await.unwrap();
-  // db_insert_user(&CodeFestUser {
-  //   name: "moderr".to_string(),
-  //   display_name: "Moderr".to_string(),
-  //   id: Uuid::new_v4(),
-  //   bio: None,
-  //   created_at: Utc::now(),
-  //   updated_at: Utc::now(),
-  //   flags: 0,
-  // }, &db_pool).await.unwrap();
-  // db_insert_user(&CodeFestUser {
-  //   name: "drakvlaa".to_string(),
-  //   display_name: "Dr Akula".to_string(),
-  //   id: Uuid::new_v4(),
-  //   bio: None,
-  //   created_at: Utc::now(),
-  //   updated_at: Utc::now(),
-  //   flags: 0,
-  // }, &db_pool).await.unwrap();
   let with_db = warp::any().map(move || db_pool.clone());
-
-  let users: Users = Arc::new(RwLock::new(HashMap::new()));
-  let _users = warp::any().map(move || users.clone());
 
   let otp_codes: Arc<RwLock<HashMap<String, OTPData>>> = Arc::new(RwLock::new(HashMap::new()));
   let otp_codes = warp::any().map(move || otp_codes.clone());
@@ -264,23 +240,39 @@ async fn main() -> Result<()> {
   let options_route =
     warp::options().map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
 
-  let db_test = warp::path!("dbtest")
-    .and(with_db.clone())
-    .and_then(database_handler);
-
   let users_get = warp::path!("users" / String)
     .and(with_db.clone())
-    .and_then(users::api_get_user);
+    .and_then(user::api::get_user);
+
+  let projects_get = warp::path!("projects" / String / String)
+    .and(warp::get())
+    .and(with_db.clone())
+    .and_then(project::api::get_project);
+
+  let projects_post = warp::path!("project" / "create")
+    .and(warp::post())
+    .and(with_auth("user".into()))
+    .and(warp::body::json())
+    .and(with_db.clone())
+    .and_then(project::api::post_project);
+
+  let profile_get = warp::path!("profile" / String)
+    .and(warp::get())
+    .and(with_db.clone())
+    .and_then(user::api::get_profile);
+
 
   let routes = version1
     .and(
       auth.and(auth_login.or(auth_register).or(auth_otp).or(auth_exists))
-        .or(db_test)
         .or(status)
         .or(ckziu_news)
         .or(articles)
         .or(options_route)
         .or(trending_projects)
+        .or(projects_get)
+        .or(projects_post)
+        .or(profile_get)
         .or(users_get),
     )
     .or(status)

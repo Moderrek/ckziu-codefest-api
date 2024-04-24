@@ -229,11 +229,11 @@ img,p{margin:0;Margin:0;font-family:Lato,BlinkMacSystemFont,Segoe UI,Helvetica N
 </html>"#)
     .unwrap();
 
-  let mailer: SmtpTransport = SmtpTransport::relay("ssl0.ovh.net")
+  let mailer: SmtpTransport = SmtpTransport::relay(dotenv!("MAIL_RELAY"))
     .expect("Failed to connect to SMTP")
     .credentials(Credentials::new(
-      "noreply@ckziucodefest.pl".into(),
-      "FJWuSbmWKeRpePqX".into(),
+      dotenv!("MAIL_USER").into(),
+      dotenv!("MAIL_PASSWORD").into(),
     ))
     .build();
 

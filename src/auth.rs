@@ -2,33 +2,70 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use jsonwebtoken::{Algorithm, encode, EncodingKey, Header};
+use futures::TryStreamExt;
+use jsonwebtoken::{Algorithm, decode, DecodingKey, encode, EncodingKey, Header, Validation};
 use log::{info, warn};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use warp::Reply;
+use warp::{Filter, reject, Rejection, Reply};
+use warp::header::headers_cloned;
+use warp::http::{HeaderMap, HeaderValue};
+use warp::http::header::AUTHORIZATION;
 use warp::reply::json;
 
+use crate::auth::models::AuthUser;
 use crate::mail::send_otp_code;
-use crate::users::CodeFestUser;
+use crate::user::models::{User, USER_DEVELOPER, USER_STUFF};
 use crate::WebResult;
 
-#[derive(Debug, Deserialize, Serialize, FromRow)]
-struct AuthUser {
-  name: String,
-  mail: String,
-  id: Uuid,
-  password: String,
-}
+mod models;
+
+const BEARER: &str = "Bearer ";
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Claims {
-  uid: String,
-  role: String,
+  uuid: Uuid,
   exp: usize,
+}
+
+pub fn with_auth(role: String) -> impl Filter<Extract=(Uuid, ), Error=Rejection> + Clone {
+  headers_cloned()
+    .map(move |headers: HeaderMap<HeaderValue>| (role.clone(), headers))
+    .and_then(authorize)
+}
+
+async fn authorize((_role, headers): (String, HeaderMap<HeaderValue>)) -> WebResult<Uuid> {
+  match jwt_from_header(&headers) {
+    Ok(jwt) => {
+      let decoded = decode::<Claims>(
+        &jwt,
+        &DecodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes()),
+        &Validation::new(Algorithm::HS512),
+      )
+        .map_err(|_| reject::custom(crate::error::Error::JWTToken))?;
+
+      Ok(decoded.claims.uuid)
+    }
+    Err(e) => Err(reject::custom(e)),
+  }
+}
+
+fn jwt_from_header(headers: &HeaderMap<HeaderValue>) -> Result<String, crate::error::Error> {
+  let header = match headers.get(AUTHORIZATION) {
+    Some(v) => v,
+    None => return Err(crate::error::Error::NoAuthHeader),
+  };
+  let auth_header = match std::str::from_utf8(header.as_bytes()) {
+    Ok(v) => v,
+    Err(_) => return Err(crate::error::Error::NoAuthHeader),
+  };
+  if !auth_header.starts_with(BEARER) {
+    return Err(crate::error::Error::InvalidAuthHeader);
+  }
+  Ok(auth_header.trim_start_matches(BEARER).to_owned())
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,15 +107,14 @@ pub struct RegisterResponse {
   pub message: String,
 }
 
-pub fn create_jwt(uid: &str, role: &str) -> crate::Result<String> {
+pub fn create_jwt(uuid: Uuid) -> crate::Result<String> {
   let expiration = Utc::now()
-    .checked_add_signed(chrono::Duration::seconds(60))
+    .checked_add_signed(chrono::Duration::hours(1))
     .expect("Valid timestamp")
     .timestamp();
 
   let claims = Claims {
-    uid: uid.into(),
-    role: role.into(),
+    uuid,
     exp: expiration as usize,
   };
 
@@ -87,8 +123,7 @@ pub fn create_jwt(uid: &str, role: &str) -> crate::Result<String> {
     &header,
     &claims,
     &EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes()),
-  )
-    .unwrap())
+  ).unwrap())
 }
 
 fn generate_otp(length: usize) -> String {
@@ -179,7 +214,8 @@ pub async fn auth_login_handler(
       }
       if otp_data.code == body.otp {
         info!("LOGIN @ {} | Prawidłowy kod | Zalogowano", &body.email);
-        let jwt = create_jwt(body.email.as_str(), "user").unwrap();
+        // let jwt = create_jwt(body.email.as_str(), "user").unwrap();
+        let jwt = "INVALID_TOKEN".into();
         tokio::spawn(async move {
           otp_codes.clone().write().await.remove(&body.email);
         });
@@ -204,7 +240,7 @@ pub fn hash_password(password: String) -> String {
   password
 }
 
-async fn db_register_user(auth_user: &AuthUser, user: &CodeFestUser, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+async fn db_register_user(auth_user: &AuthUser, user: &User, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
   let mut transaction = pool.begin().await?;
 
   let auth_query = "INSERT INTO auth (name, mail, id, password) VALUES ($1, $2, $3, $4)";
@@ -270,7 +306,7 @@ pub async fn auth_exists_handler(selector: String, pool: PgPool) -> WebResult<im
 pub async fn auth_register_handler(body: RegisterRequest, pool: PgPool) -> WebResult<impl Reply> {
   let id = Uuid::new_v4();
 
-  let user = CodeFestUser {
+  let user = User {
     name: body.name.to_lowercase().clone(),
     display_name: body.name.clone(),
     id,
@@ -298,7 +334,7 @@ pub async fn auth_register_handler(body: RegisterRequest, pool: PgPool) -> WebRe
     }
     _ => {
       info!("New user {}", user.name.clone());
-      let token = create_jwt(user.id.to_string().as_str(), "user").expect("Failed to create JWT");
+      let token = create_jwt(id).expect("Failed to create JWT");
 
       Ok(json(&RegisterResponse {
         success: true,

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct Project {
@@ -24,12 +24,6 @@ pub struct ServerStatus {
   pub author: String,
   pub version: String,
   pub services: ServerServiceStatus,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct User {
-  pub uid: String,
-  pub name: String,
 }
 
 #[derive(Serialize)]
