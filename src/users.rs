@@ -102,6 +102,20 @@ pub async fn db_get_user(name: &String, pool: &PgPool) -> Result<Option<CodeFest
   Ok(result)
 }
 
+pub async fn db_update_user_bio(name: &String, pool: &PgPool, bio: &String) -> Result<(), Box<dyn std::error::Error>> {
+  let query = "UPDATE users SET bio = $1 WHERE name = $2";
+
+  let mut transaction = pool.begin().await?;
+
+  sqlx::query(query)
+  .bind(name)
+  .bind(bio)
+  .execute(&mut *transaction)
+  .await?;
+
+  Ok(())
+}
+
 pub async fn api_get_user(name: String, db: PgPool) -> WebResult<impl Reply> {
   info!("Searching for user: {}", &name);
   if let Some(user) = db_get_user(&name, &db).await.unwrap() {
