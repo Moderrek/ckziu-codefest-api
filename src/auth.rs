@@ -21,7 +21,10 @@ use crate::mail::send_otp_code;
 use crate::user::models::{User, USER_DEVELOPER, USER_STUFF};
 use crate::WebResult;
 
-mod models;
+pub mod models;
+pub mod api;
+pub mod auth;
+mod db;
 
 const BEARER: &str = "Bearer ";
 
@@ -243,10 +246,9 @@ pub fn hash_password(password: String) -> String {
 async fn db_register_user(auth_user: &AuthUser, user: &User, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
   let mut transaction = pool.begin().await?;
 
-  let auth_query = "INSERT INTO auth (name, mail, id, password) VALUES ($1, $2, $3, $4)";
+  let auth_query = "INSERT INTO auth (mail, id, password) VALUES ($1, $2, $3)";
 
   sqlx::query(auth_query)
-    .bind(&auth_user.name)
     .bind(&auth_user.mail)
     .bind(auth_user.id)
     .bind(&auth_user.password)
@@ -299,48 +301,6 @@ pub async fn auth_exists_handler(selector: String, pool: PgPool) -> WebResult<im
     Err(err) => {
       warn!("Auth exists: {}", err);
       Ok("Error".into())
-    }
-  }
-}
-
-pub async fn auth_register_handler(body: RegisterRequest, pool: PgPool) -> WebResult<impl Reply> {
-  let id = Uuid::new_v4();
-
-  let user = User {
-    name: body.name.to_lowercase().clone(),
-    display_name: body.name.clone(),
-    id,
-    bio: None,
-    created_at: Utc::now(),
-    updated_at: Utc::now(),
-    flags: 0,
-  };
-
-  let auth_user = AuthUser {
-    name: body.name.to_lowercase().clone(),
-    id,
-    mail: body.email.to_lowercase().clone(),
-    password: hash_password(body.password),
-  };
-
-  match db_register_user(&auth_user, &user, &pool).await {
-    Err(err) => {
-      warn!("Cannot perform register user {}", err);
-      Ok(json(&RegisterResponse {
-        success: false,
-        token: None,
-        message: "Nie udało się zarejestrować".into(),
-      }))
-    }
-    _ => {
-      info!("New user {}", user.name.clone());
-      let token = create_jwt(id).expect("Failed to create JWT");
-
-      Ok(json(&RegisterResponse {
-        success: true,
-        token: Some(token),
-        message: "Pomyślnie utworzono konto".into(),
-      }))
     }
   }
 }

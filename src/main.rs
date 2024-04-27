@@ -15,7 +15,7 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
-use crate::auth::{auth_exists_handler, auth_login_handler, auth_otp_handler, auth_register_handler, OTPData, with_auth};
+use crate::auth::{auth_exists_handler, auth_otp_handler, OTPData, with_auth};
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
 
@@ -202,27 +202,41 @@ async fn main() -> Result<()> {
 
   let auth = warp::path!("auth" / ..);
 
+  let auth_prelogin = warp::path!("prelogin")
+    .and(warp::post())
+    .and(warp::body::json())
+    .and(with_db.clone())
+    .and_then(auth::api::prelogin);
+
   let auth_otp = warp::path!("otp")
     .and(warp::post())
     .and(warp::body::json())
     .and(otp_codes.clone())
     .and_then(auth_otp_handler);
 
-  let auth_login = warp::path!("login")
+  let auth_register = warp::path!("register")
     .and(warp::post())
     .and(warp::body::json())
-    .and(otp_codes)
-    .and_then(auth_login_handler);
+    .and(with_db.clone())
+    .and_then(auth::api::register);
+
+  let auth_login_credentials = warp::path!("login" / "credentials")
+    .and(warp::addr::remote())
+    .and(warp::post())
+    .and(warp::body::json())
+    .and(with_db.clone())
+    .and_then(auth::api::login_credentials);
 
   let auth_exists = warp::path!("exists" / String)
     .and(with_db.clone())
     .and_then(auth_exists_handler);
 
-  let auth_register = warp::path!("register")
-    .and(warp::post())
-    .and(warp::body::json())
+  let auth_info = warp::path!("info")
+    .and(warp::get())
+    .and(with_auth("user".into()))
     .and(with_db.clone())
-    .and_then(auth_register_handler);
+    .and_then(auth::api::info);
+
 
   let cors = warp::cors()
     .allow_any_origin()
@@ -234,6 +248,7 @@ async fn main() -> Result<()> {
       "Access-Control-Request-Method",
       "Access-Control-Request-Headers",
       "Content-Type",
+      "Authorization",
     ])
     .allow_methods(vec!["POST", "GET"]);
 
@@ -264,7 +279,7 @@ async fn main() -> Result<()> {
 
   let routes = version1
     .and(
-      auth.and(auth_login.or(auth_register).or(auth_otp).or(auth_exists))
+      auth.and(auth_login_credentials.or(auth_info).or(auth_prelogin).or(auth_register).or(auth_otp).or(auth_exists))
         .or(status)
         .or(ckziu_news)
         .or(articles)

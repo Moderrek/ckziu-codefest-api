@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::project::models::Project;
 use crate::user::models::User;
@@ -89,4 +90,15 @@ pub async fn update_bio(name: &String, pool: &PgPool, bio: &String) -> Result<()
     .await?;
 
   Ok(())
+}
+
+pub async fn get_info(uuid: &Uuid, pool: &PgPool) -> Result<(String, ), Box<dyn std::error::Error>> {
+  let query = "SELECT name FROM users WHERE id = $1 LIMIT 1";
+
+  let result: (String, ) = sqlx::query_as(query)
+    .bind(uuid)
+    .fetch_one(pool)
+    .await?;
+
+  Ok(result)
 }
