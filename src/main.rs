@@ -15,7 +15,7 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
-use crate::auth::{auth_exists_handler, auth_otp_handler, OTPData, with_auth};
+use crate::auth::otp::OTPData;
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
 
@@ -212,7 +212,7 @@ async fn main() -> Result<()> {
     .and(warp::post())
     .and(warp::body::json())
     .and(otp_codes.clone())
-    .and_then(auth_otp_handler);
+    .and_then(auth::api::auth_otp_handler);
 
   let auth_register = warp::path!("register")
     .and(warp::addr::remote())
@@ -228,17 +228,6 @@ async fn main() -> Result<()> {
     .and(warp::body::json())
     .and(with_db.clone())
     .and_then(auth::api::login_credentials);
-
-  let auth_exists = warp::path!("exists" / String)
-    .and(with_db.clone())
-    .and_then(auth_exists_handler);
-
-  let auth_info = warp::path!("info")
-    .and(warp::get())
-    .and(with_auth("user".into()))
-    .and(with_db.clone())
-    .and_then(auth::api::info);
-
 
   let cors = warp::cors()
     .allow_any_origin()
@@ -268,10 +257,10 @@ async fn main() -> Result<()> {
 
   let projects_post = warp::path!("project" / "create")
     .and(warp::post())
-    .and(with_auth("user".into()))
+    .and(auth::header::with_auth())
     .and(warp::body::json())
     .and(with_db.clone())
-    .and_then(project::api::post_project);
+    .and_then(project::api::create_project);
 
   let profile_get = warp::path!("profile" / String)
     .and(warp::get())
@@ -281,7 +270,12 @@ async fn main() -> Result<()> {
 
   let routes = version1
     .and(
-      auth.and(auth_login_credentials.or(auth_info).or(auth_prelogin).or(auth_register).or(auth_otp).or(auth_exists))
+      auth.and(
+        auth_login_credentials
+          .or(auth_prelogin)
+          .or(auth_register)
+          .or(auth_otp)
+      )
         .or(status)
         .or(ckziu_news)
         .or(articles)

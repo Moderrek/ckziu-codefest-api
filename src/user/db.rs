@@ -41,6 +41,17 @@ pub async fn get_user(name: &String, pool: &PgPool) -> Result<Option<User>, Box<
   Ok(result)
 }
 
+pub async fn find_user_by_id(id: &Uuid, pool: &PgPool) -> Result<Option<User>, Box<dyn std::error::Error>> {
+  let query = "SELECT * FROM users WHERE id = $1 LIMIT 1";
+
+  let result: Option<User> = sqlx::query_as(query)
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+
+  Ok(result)
+}
+
 pub async fn get_profile(username: &String, pool: &PgPool) -> Result<Option<ProfileResponse>, Box<dyn std::error::Error>> {
   let query = "SELECT * FROM users WHERE name = $1 LIMIT 1";
   let query_projects = "SELECT * FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 ORDER BY projects.updated_at";

@@ -1,6 +1,9 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::auth::models::AuthUser;
+use crate::user::models::User;
+
 pub async fn is_user_exists(login: &String, pool: &PgPool) -> Result<bool, Box<dyn std::error::Error>> {
   let query = "SELECT auth.id FROM auth INNER JOIN users ON auth.id = users.id WHERE users.name = $1 or auth.mail = $1 LIMIT 1";
 
@@ -19,6 +22,51 @@ pub async fn get_user_password_uuid(login: &String, pool: &PgPool) -> Result<Opt
     .bind(login)
     .fetch_optional(pool)
     .await?;
+
+  Ok(result)
+}
+
+pub async fn register_user(auth_user: &AuthUser, user: &User, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+  let mut transaction = pool.begin().await?;
+
+  let auth_query = "INSERT INTO auth (mail, id, password) VALUES ($1, $2, $3)";
+
+  sqlx::query(auth_query)
+    .bind(&auth_user.mail)
+    .bind(auth_user.id)
+    .bind(&auth_user.password)
+    .execute(&mut *transaction)
+    .await?;
+
+  let query = "INSERT INTO users (name, display_name, id, bio, created_at, updated_at, flags) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+
+  sqlx::query(query)
+    .bind(&user.name)
+    .bind(&user.display_name)
+    .bind(user.id)
+    .bind(&user.bio)
+    .bind(user.created_at)
+    .bind(user.updated_at)
+    .bind(user.flags)
+    .execute(&mut *transaction)
+    .await?;
+
+  transaction.commit().await?;
+
+  Ok(())
+}
+
+async fn find_auth_user(selector: &String, pool: &PgPool) -> Result<Option<AuthUser>, Box<dyn std::error::Error>> {
+  let mut transaction = pool.begin().await?;
+
+  let find_query = "SELECT * FROM auth WHERE name = $1 or mail = $1";
+
+  let result: Option<AuthUser> = sqlx::query_as(find_query)
+    .bind(selector)
+    .fetch_optional(&mut *transaction)
+    .await?;
+
+  transaction.commit().await?;
 
   Ok(result)
 }
