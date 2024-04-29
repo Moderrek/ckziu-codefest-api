@@ -28,6 +28,10 @@ pub enum Error {
   ProjectNotFound,
   #[error("Server Problem")]
   ServerProblem,
+  #[error("Parameter Problem")]
+  ParameterProblem,
+  #[error("User Exists")]
+  UserExists,
 }
 
 #[derive(Serialize, Debug)]

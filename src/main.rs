@@ -215,8 +215,10 @@ async fn main() -> Result<()> {
     .and_then(auth_otp_handler);
 
   let auth_register = warp::path!("register")
+    .and(warp::addr::remote())
     .and(warp::post())
     .and(warp::body::json())
+    .and(otp_codes.clone())
     .and(with_db.clone())
     .and_then(auth::api::register);
 
