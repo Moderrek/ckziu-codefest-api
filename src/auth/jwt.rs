@@ -12,6 +12,7 @@ pub struct Claims {
 pub fn create_jwt(uuid: Uuid) -> crate::Result<String> {
   let expiration = Utc::now()
     .checked_add_signed(chrono::Duration::hours(1))
+    // .checked_add_signed(chrono::Duration::minutes(1))
     .expect("Valid timestamp")
     .timestamp();
 

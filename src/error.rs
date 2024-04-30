@@ -32,10 +32,13 @@ pub enum Error {
   ParameterProblem,
   #[error("User Exists")]
   UserExists,
+  #[error("Unauthorized")]
+  Unauthorized,
 }
 
 #[derive(Serialize, Debug)]
 struct ErrorResponse {
+  success: bool,
   message: String,
   status: String,
 }
@@ -50,7 +53,12 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
       Error::WrongCredentials => (StatusCode::FORBIDDEN, e.to_string()),
       Error::NoPermission => (StatusCode::UNAUTHORIZED, e.to_string()),
       Error::JWTToken => (StatusCode::UNAUTHORIZED, e.to_string()),
+      Error::Unauthorized => (StatusCode::UNAUTHORIZED, e.to_string()),
       Error::JWTTokenCreation => (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Internal Server Error".to_string(),
+      ),
+      Error::ServerProblem => (
         StatusCode::INTERNAL_SERVER_ERROR,
         "Internal Server Error".to_string(),
       ),
@@ -70,6 +78,7 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
   };
 
   let json = warp::reply::json(&ErrorResponse {
+    success: false,
     status: code.to_string(),
     message,
   });

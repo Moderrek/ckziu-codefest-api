@@ -11,6 +11,7 @@ use crate::{error, project, WebResult};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectRequest;
 
+// GET v1/projects/USER_NAME/PROJECT_NAME
 pub async fn get_project(username: String, project_name: String, db_pool: PgPool) -> WebResult<impl Reply> {
   match db::get_project_by_ownername_projectname(&username, &project_name, &db_pool).await {
     Ok(response) => {
@@ -26,9 +27,10 @@ pub async fn get_project(username: String, project_name: String, db_pool: PgPool
   Err(reject::custom(error::Error::ProjectNotFound))
 }
 
+// POST v1/project/create
 pub async fn create_project(uid: Option<Uuid>, req: PostProjectRequest, db_pool: PgPool) -> WebResult<impl Reply> {
   if uid.is_none() {
-    return Ok("UNAUTHORIZED");
+    return Err(reject::custom(error::Error::Unauthorized));
   }
   let uid = uid.unwrap();
 
@@ -49,7 +51,8 @@ pub async fn create_project(uid: Option<Uuid>, req: PostProjectRequest, db_pool:
   match db::create_project(&project, &db_pool).await {
     Ok(_) => {}
     Err(err) => {
-      warn!("{}", err);
+      warn!("Failed to create project: {}", err);
+      return Err(reject::custom(error::Error::ServerProblem));
     }
   }
 

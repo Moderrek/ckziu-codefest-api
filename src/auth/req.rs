@@ -66,8 +66,9 @@ pub struct RegisterRequest {
 #[derive(Debug, Serialize)]
 pub struct RegisterResponse {
   pub success: bool,
-  pub token: Option<String>,
   pub message: String,
+  pub name: Option<String>,
+  pub token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

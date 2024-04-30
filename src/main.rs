@@ -202,6 +202,12 @@ async fn main() -> Result<()> {
 
   let auth = warp::path!("auth" / ..);
 
+  let auth_info = warp::path!("info")
+    .and(warp::get())
+    .and(auth::header::with_auth())
+    .and(with_db.clone())
+    .and_then(auth::api::info);
+
   let auth_prelogin = warp::path!("prelogin")
     .and(warp::post())
     .and(warp::body::json())
@@ -275,6 +281,7 @@ async fn main() -> Result<()> {
           .or(auth_prelogin)
           .or(auth_register)
           .or(auth_otp)
+          .or(auth_info)
       )
         .or(status)
         .or(ckziu_news)

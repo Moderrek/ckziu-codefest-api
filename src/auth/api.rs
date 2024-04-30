@@ -98,8 +98,11 @@ pub async fn login_credentials(addr: Option<SocketAddr>, body: LoginCredentialsB
   }))
 }
 
-pub async fn info(userid: Uuid, db: PgPool) -> WebResult<impl Reply> {
-  match crate::user::db::get_info(&userid, &db).await {
+pub async fn info(userid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
+  if userid.is_none() {
+    return Err(reject::custom(crate::error::Error::Unauthorized));
+  }
+  match crate::user::db::get_info(&userid.unwrap(), &db).await {
     Ok(info) => {
       Ok(json(&InfoResponse {
         name: info.0
@@ -116,16 +119,14 @@ fn is_password_valid(password: &str) -> bool {
   let mut has_whitespace = false;
   let mut has_upper = false;
   let mut has_lower = false;
-  let mut has_digit = false;
 
   for c in password.chars() {
     has_whitespace |= c.is_whitespace();
     has_lower |= c.is_lowercase();
     has_upper |= c.is_uppercase();
-    has_digit |= c.is_ascii_digit();
   }
 
-  !has_whitespace && has_upper && has_lower && has_digit && password.len() >= 8
+  !has_whitespace && has_upper && has_lower && password.len() >= 8
 }
 
 fn is_name_valid(name: &str) -> bool {
@@ -139,7 +140,7 @@ fn is_name_valid(name: &str) -> bool {
     has_upper |= c.is_uppercase();
   }
 
-  !has_whitespace && !has_upper && has_lower && name.len() >= 3
+  !has_whitespace && !has_upper && has_lower && name.len() >= 3 && name.len() <= 48
 }
 
 fn is_mail_valid(mail: &str) -> bool {
@@ -221,6 +222,7 @@ pub async fn register(addr: Option<SocketAddr>, body: RegisterRequest, otp_codes
       info!("{} failed to register cause no matching otp for this email  '{}'", addr_to_string(&addr), &body.email);
       return Ok(json(&RegisterResponse {
         success: false,
+        name: None,
         token: None,
         message: "Nieprawidłowy kod.".into(),
       }));
@@ -234,6 +236,7 @@ pub async fn register(addr: Option<SocketAddr>, body: RegisterRequest, otp_codes
         });
         return Ok(json(&RegisterResponse {
           success: false,
+          name: None,
           token: None,
           message: "Nieprawidłowy kod.".into(),
         }));
@@ -244,6 +247,7 @@ pub async fn register(addr: Option<SocketAddr>, body: RegisterRequest, otp_codes
         info!("{} failed to register cause invalid otp '{}'", addr_to_string(&addr), &body.email);
         return Ok(json(&RegisterResponse {
           success: false,
+          name: None,
           token: None,
           message: "Nieprawidłowy kod.".into(),
         }));
@@ -318,6 +322,7 @@ pub async fn register(addr: Option<SocketAddr>, body: RegisterRequest, otp_codes
     warn!("Cannot perform register user {}", err);
     return Ok(json(&RegisterResponse {
       success: false,
+      name: None,
       token: None,
       message: "Nie udało się zarejestrować. Wystąpił problem serwera.".into(),
     }));
@@ -331,6 +336,7 @@ pub async fn register(addr: Option<SocketAddr>, body: RegisterRequest, otp_codes
 
   Ok(json(&RegisterResponse {
     success: true,
+    name: Some(body.name),
     token: Some(session_token),
     message: "Pomyślnie zarejestrowano nowe konto i utworzono sesje autoryzacji.".into(),
   }))
