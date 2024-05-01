@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use models::Project;
@@ -23,4 +23,20 @@ pub struct ProfileResponse {
   pub updated_at: DateTime<Utc>,
 
   pub flags: i32,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateBioBody {
+  pub bio: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateDisplayNameBody {
+  pub displayname: String,
+}
+
+#[derive(Serialize)]
+pub struct UpdateBioResponse {
+  pub success: bool,
+  pub message: String,
 }

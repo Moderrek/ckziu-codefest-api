@@ -4,8 +4,11 @@ use serde::Serialize;
 use thiserror::Error;
 use warp::{http::StatusCode, Rejection, Reply};
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum Error {
+  #[error("Ten adres nie ma przydzielonego dostępu.")]
+  UnallowedMail,
   #[error("wrong credentials")]
   WrongCredentials,
   #[error("jwt token not valid")]

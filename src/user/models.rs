@@ -27,6 +27,7 @@ pub struct User {
   pub flags: i32,
 }
 
+#[allow(dead_code)]
 impl User {
   pub fn is_flag_set(&self, index: u32) -> bool {
     1 == (self.flags & 1 << index)

@@ -10,7 +10,7 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::{auth, WebResult};
+use crate::{auth, error, WebResult};
 use crate::auth::{db, otp};
 use crate::auth::jwt::create_jwt;
 use crate::auth::models::AuthUser;
@@ -143,7 +143,7 @@ fn is_name_valid(name: &str) -> bool {
   !has_whitespace && !has_upper && has_lower && name.len() >= 3 && name.len() <= 48
 }
 
-fn is_mail_valid(mail: &str) -> bool {
+fn is_mail_valid(_mail: &str) -> bool {
   true
 }
 
@@ -160,17 +160,18 @@ fn addr_to_string(addr: &Option<SocketAddr>) -> String {
 
 // v1/auth/otp
 pub async fn auth_otp_handler(body: OTPRequest, otp_codes: Arc<RwLock<HashMap<String, OTPData>>>) -> WebResult<impl Reply> {
-  println!("OTP -> Email: {}", body.email);
-  // if !body.email.ends_with("ckziu.elodz.edu.pl") {
-  //   // return Err(warp::reject::custom(error::Error::WrongCredentialsError));
-  //   return Ok(json(
-  //     &LoginResponse {
-  //       token: None,
-  //       message: "Nieprawidłowy email".into()
-  //     }
-  //   ));
-  // }
-
+  if !body.email.ends_with("ckziu.elodz.edu.pl") {
+    info!("Somebody tried get otp with email: {}", &body.email);
+    return Err(reject::custom(error::Error::UnallowedMail));
+    // return Ok(json(
+    //   &OTPResponse {
+    //     token: None,
+    //     name: None,
+    //     message: "Nieprawidłowy email".into(),
+    //     uuid: None,
+    //   }
+    // ));
+  }
   let otp = otp::generate_otp(6);
 
   let expiration = Utc::now()

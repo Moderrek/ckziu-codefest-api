@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
+use chrono::Utc;
 use dotenv::dotenv;
 use log::{error, info, warn};
 use reply::json;
@@ -116,6 +117,10 @@ pub async fn trending_projects_handler() -> WebResult<impl Reply> {
   ]))
 }
 
+pub fn current_millis() -> i64 {
+  Utc::now().timestamp_millis()
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
   tracing_subscriber::fmt()
@@ -210,12 +215,14 @@ async fn main() -> Result<()> {
 
   let auth_prelogin = warp::path!("prelogin")
     .and(warp::post())
+    .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(with_db.clone())
     .and_then(auth::api::prelogin);
 
   let auth_otp = warp::path!("otp")
     .and(warp::post())
+    .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(otp_codes.clone())
     .and_then(auth::api::auth_otp_handler);
@@ -223,6 +230,7 @@ async fn main() -> Result<()> {
   let auth_register = warp::path!("register")
     .and(warp::addr::remote())
     .and(warp::post())
+    .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(otp_codes.clone())
     .and(with_db.clone())
@@ -231,6 +239,7 @@ async fn main() -> Result<()> {
   let auth_login_credentials = warp::path!("login" / "credentials")
     .and(warp::addr::remote())
     .and(warp::post())
+    .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(with_db.clone())
     .and_then(auth::api::login_credentials);
@@ -264,6 +273,7 @@ async fn main() -> Result<()> {
   let projects_post = warp::path!("project" / "create")
     .and(warp::post())
     .and(auth::header::with_auth())
+    .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(with_db.clone())
     .and_then(project::api::create_project);
@@ -272,6 +282,22 @@ async fn main() -> Result<()> {
     .and(warp::get())
     .and(with_db.clone())
     .and_then(user::api::get_profile);
+
+  let update_user_bio = warp::path!("update" / "user" / "bio")
+    .and(warp::post())
+    .and(auth::header::with_auth())
+    .and(warp::body::content_length_limit(1024 * 16))
+    .and(warp::body::json())
+    .and(with_db.clone())
+    .and_then(user::api::update_bio);
+
+  let update_user_displayname = warp::path!("update" / "user" / "displayname")
+    .and(warp::post())
+    .and(auth::header::with_auth())
+    .and(warp::body::content_length_limit(1024 * 16))
+    .and(warp::body::json())
+    .and(with_db.clone())
+    .and_then(user::api::update_displayname);
 
 
   let routes = version1
@@ -283,6 +309,8 @@ async fn main() -> Result<()> {
           .or(auth_otp)
           .or(auth_info)
       )
+        .or(update_user_bio)
+        .or(update_user_displayname)
         .or(status)
         .or(ckziu_news)
         .or(articles)

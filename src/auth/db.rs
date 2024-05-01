@@ -55,18 +55,3 @@ pub async fn register_user(auth_user: &AuthUser, user: &User, pool: &PgPool) -> 
 
   Ok(())
 }
-
-async fn find_auth_user(selector: &String, pool: &PgPool) -> Result<Option<AuthUser>, Box<dyn std::error::Error>> {
-  let mut transaction = pool.begin().await?;
-
-  let find_query = "SELECT * FROM auth WHERE name = $1 or mail = $1";
-
-  let result: Option<AuthUser> = sqlx::query_as(find_query)
-    .bind(selector)
-    .fetch_optional(&mut *transaction)
-    .await?;
-
-  transaction.commit().await?;
-
-  Ok(result)
-}

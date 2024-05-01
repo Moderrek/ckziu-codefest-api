@@ -8,6 +8,7 @@ pub mod db;
 pub mod api;
 pub mod responses;
 
+#[allow(dead_code)]
 pub enum UserSelector {
   Uuid(Uuid),
   Username(String),

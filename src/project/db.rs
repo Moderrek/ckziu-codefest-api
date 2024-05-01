@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::project::models::Project;
 
+#[allow(dead_code)]
 pub async fn get_projects_by_ownerid(owner_id: &Uuid, pool: &PgPool) -> Result<Vec<Project>, Box<dyn std::error::Error>> {
   let query = r"SELECT * FROM projects WHERE owner_id = $1";
 
@@ -14,8 +15,9 @@ pub async fn get_projects_by_ownerid(owner_id: &Uuid, pool: &PgPool) -> Result<V
   Ok(result)
 }
 
+#[allow(dead_code)]
 pub async fn get_projects_by_ownername(username: &String, pool: &PgPool) -> Result<Vec<Project>, Box<dyn std::error::Error>> {
-  let query = r"SELECT * FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 ORDER BY projects.updated_at";
+  let query = r"SELECT projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, user.id AS userid, user.name AS username FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 ORDER BY projects.updated_at";
 
   let result: Vec<Project> = sqlx::query_as(query)
     .bind(username)
