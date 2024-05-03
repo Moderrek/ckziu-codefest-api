@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use dotenv::dotenv;
+use jsonwebtoken::EncodingKey;
 use log::{error, info, warn};
 use reply::json;
 use tokio::sync::RwLock;
@@ -16,7 +17,8 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
-use crate::auth::otp::OTPData;
+use crate::auth::otp::OTP;
+use crate::database::with_db;
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
 
@@ -28,6 +30,7 @@ mod models;
 mod scrap;
 mod user;
 mod project;
+mod cache;
 
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
@@ -121,6 +124,8 @@ pub fn current_millis() -> i64 {
   Utc::now().timestamp_millis()
 }
 
+type OTPCodes = Arc<RwLock<HashMap<String, OTP>>>;
+
 #[tokio::main]
 async fn main() -> Result<()> {
   tracing_subscriber::fmt()
@@ -171,10 +176,12 @@ async fn main() -> Result<()> {
 
   info!("Init database pool..");
   let db_pool = database::create_pool().await.unwrap();
-  let with_db = warp::any().map(move || db_pool.clone());
 
-  let otp_codes: Arc<RwLock<HashMap<String, OTPData>>> = Arc::new(RwLock::new(HashMap::new()));
+  let otp_codes: Arc<RwLock<HashMap<String, OTP>>> = Arc::new(RwLock::new(HashMap::new()));
   let otp_codes = warp::any().map(move || otp_codes.clone());
+
+  let key = EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes());
+  let jwt_key = warp::any().map(move || key.clone());
 
   let version1 = warp::path!("v1" / ..);
 
@@ -210,19 +217,21 @@ async fn main() -> Result<()> {
   let auth_info = warp::path!("info")
     .and(warp::get())
     .and(auth::header::with_auth())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(auth::api::info);
 
   let auth_prelogin = warp::path!("prelogin")
     .and(warp::post())
     .and(warp::body::content_length_limit(1024 * 16))
+    .and(warp::addr::remote())
+    .and(with_db(db_pool.clone()))
     .and(warp::body::json())
-    .and(with_db.clone())
     .and_then(auth::api::prelogin);
 
   let auth_otp = warp::path!("otp")
     .and(warp::post())
     .and(warp::body::content_length_limit(1024 * 16))
+    .and(warp::addr::remote())
     .and(warp::body::json())
     .and(otp_codes.clone())
     .and_then(auth::api::auth_otp_handler);
@@ -231,17 +240,19 @@ async fn main() -> Result<()> {
     .and(warp::addr::remote())
     .and(warp::post())
     .and(warp::body::content_length_limit(1024 * 16))
-    .and(warp::body::json())
     .and(otp_codes.clone())
-    .and(with_db.clone())
+    .and(jwt_key.clone())
+    .and(with_db(db_pool.clone()))
+    .and(warp::body::json())
     .and_then(auth::api::register);
 
   let auth_login_credentials = warp::path!("login" / "credentials")
     .and(warp::addr::remote())
     .and(warp::post())
     .and(warp::body::content_length_limit(1024 * 16))
+    .and(with_db(db_pool.clone()))
+    .and(jwt_key.clone())
     .and(warp::body::json())
-    .and(with_db.clone())
     .and_then(auth::api::login_credentials);
 
   let cors = warp::cors()
@@ -262,12 +273,12 @@ async fn main() -> Result<()> {
     warp::options().map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
 
   let users_get = warp::path!("users" / String)
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(user::api::get_user);
 
   let projects_get = warp::path!("projects" / String / String)
     .and(warp::get())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(project::api::get_project);
 
   let projects_post = warp::path!("project" / "create")
@@ -275,12 +286,12 @@ async fn main() -> Result<()> {
     .and(auth::header::with_auth())
     .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(project::api::create_project);
 
   let profile_get = warp::path!("profile" / String)
     .and(warp::get())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(user::api::get_profile);
 
   let update_user_bio = warp::path!("update" / "user" / "bio")
@@ -288,7 +299,7 @@ async fn main() -> Result<()> {
     .and(auth::header::with_auth())
     .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(user::api::update_bio);
 
   let update_user_displayname = warp::path!("update" / "user" / "displayname")
@@ -296,7 +307,7 @@ async fn main() -> Result<()> {
     .and(auth::header::with_auth())
     .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
-    .and(with_db.clone())
+    .and(with_db(db_pool.clone()))
     .and_then(user::api::update_displayname);
 
 

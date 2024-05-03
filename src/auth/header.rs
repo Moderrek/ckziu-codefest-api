@@ -7,7 +7,7 @@ use warp::http::{HeaderMap, HeaderValue};
 use warp::http::header::AUTHORIZATION;
 
 use crate::auth::jwt::Claims;
-use crate::WebResult;
+use crate::{error, WebResult};
 
 const BEARER: &str = "Bearer ";
 
@@ -17,7 +17,7 @@ pub fn with_auth() -> impl Filter<Extract=(Option<Uuid>, ), Error=Rejection> + C
     .and_then(authorize)
 }
 
-async fn authorize((headers): (HeaderMap<HeaderValue>)) -> WebResult<Option<Uuid>> {
+async fn authorize(headers: HeaderMap<HeaderValue>) -> WebResult<Option<Uuid>> {
   match jwt_from_header(&headers) {
     Ok(jwt) => {
       let decoded = match decode::<Claims>(
@@ -43,17 +43,17 @@ async fn authorize((headers): (HeaderMap<HeaderValue>)) -> WebResult<Option<Uuid
   }
 }
 
-fn jwt_from_header(headers: &HeaderMap<HeaderValue>) -> Result<String, crate::error::Error> {
+fn jwt_from_header(headers: &HeaderMap<HeaderValue>) -> Result<String, error::Error> {
   let header = match headers.get(AUTHORIZATION) {
-    Some(v) => v,
-    None => return Err(crate::error::Error::NoAuthHeader),
+    Some(value) => value,
+    None => return Err(error::Error::NoAuthHeader),
   };
   let auth_header = match std::str::from_utf8(header.as_bytes()) {
-    Ok(v) => v,
-    Err(_) => return Err(crate::error::Error::NoAuthHeader),
+    Ok(value) => value,
+    Err(_) => return Err(error::Error::NoAuthHeader),
   };
   if !auth_header.starts_with(BEARER) {
-    return Err(crate::error::Error::InvalidAuthHeader);
+    return Err(error::Error::InvalidAuthHeader);
   }
   Ok(auth_header.trim_start_matches(BEARER).to_owned())
 }
