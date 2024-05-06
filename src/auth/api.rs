@@ -11,6 +11,7 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
+use crate::utils::addr_to_string;
 use crate::{auth, current_millis, OTPCodes, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
@@ -155,13 +156,6 @@ fn is_name_valid(name: &str) -> bool {
 
 fn is_mail_valid(_mail: &str) -> bool {
   true
-}
-
-fn addr_to_string(addr: &Option<SocketAddr>) -> String {
-  match addr {
-    Some(addr) => addr.to_string(),
-    None => "Unknown".into()
-  }
 }
 
 const CKZIU_MAIL_DOMAIN: &str = "ckziu.elodz.edu.pl";

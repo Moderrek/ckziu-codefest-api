@@ -5,9 +5,18 @@ use uuid::Uuid;
 use crate::user::models::User;
 
 #[derive(Deserialize)]
-pub struct PostProjectRequest {
+pub struct PostProjectBody {
   pub name: String,
   pub display_name: String,
+  pub description: Option<String>,
+  pub private: bool,
+}
+
+#[derive(Serialize)]
+pub struct PostProjectResponse {
+  pub success: bool,
+  pub message: String,
+  pub created: bool,
 }
 
 #[derive(Serialize)]
