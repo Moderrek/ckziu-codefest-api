@@ -11,7 +11,6 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::utils::addr_to_string;
 use crate::{auth, current_millis, OTPCodes, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
@@ -21,6 +20,7 @@ use crate::auth::password::password_verify;
 use crate::auth::req::{InfoResponse, LoginCredentialsBody, LoginResponse, OTPRequest, OTPResponse, PreLoginBody, PreLoginResponse, RegisterRequest, RegisterResponse};
 use crate::mail::send_otp_code;
 use crate::user::models::User;
+use crate::utils::addr_to_string;
 
 // v1/auth/prelogin
 pub async fn prelogin(addr: Option<SocketAddr>, db: PgPool, body: PreLoginBody) -> WebResult<impl Reply> {
@@ -49,7 +49,7 @@ pub async fn prelogin(addr: Option<SocketAddr>, db: PgPool, body: PreLoginBody) 
 }
 
 // v1/auth/login/credentials
-pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: EncodingKey, body: LoginCredentialsBody, ) -> WebResult<impl Reply> {
+pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: EncodingKey, body: LoginCredentialsBody) -> WebResult<impl Reply> {
   let start = Utc::now().timestamp_millis();
   let data = match db::get_user_password_uuid(&body.login, &db).await {
     Ok(exists) => exists,
@@ -167,23 +167,23 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
     info!("Peer {} (using {}) tried to receive OTP. Illegal mail.", addr_to_string(&addr), &body.email);
     return Ok(json(&OTPResponse {
       success: false,
-      message: "Nielegalny mail.".into()
+      message: "Nielegalny mail.".into(),
     }));
   }
-  
+
   let mail = body.email;
-  
+
   let otp = Otp::new_expirable_code(6, Duration::seconds(60));
 
-  // Async save code in pair with email
+  // Async save code in a pair with email
   otp_codes.write().await.insert(
     mail.clone(),
-    otp.clone()
+    otp.clone(),
   );
-  
+
   info!("Peer {} (using {}) received OTP code [{}].", addr_to_string(&addr), &mail, &otp.code);
 
-  // OTP will be sent later in separate async task. Moves `mail`
+  // OTP will be sent later in a separate async task. Moves `mail`
   tokio::spawn(async move {
     send_otp_code(otp.code, mail);
   });
@@ -196,9 +196,9 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
 }
 
 // v1/auth/register
-pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, Otp>>>, key: EncodingKey, db: PgPool,  body: RegisterRequest) -> WebResult<impl Reply> {
+pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, Otp>>>, key: EncodingKey, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
   debug!("Peer {} (using {}) trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &body.email, &body.name, &body.email, &body.otp);
-  
+
   // Validation
   if !is_name_valid(body.name.as_str()) {
     info!("Peer {} (using {}) failed to register. Illegal name.", addr_to_string(&addr), &body.password);

@@ -17,7 +17,7 @@ jsonwebtoken = { version = "9.3.0", default-features = false }
 chrono = { version = "0.4.37", features = ["serde"], default-features = false }
 thiserror = "1.0.58"
 log = "0.4.21"
-env_logger = { version = "0.11.3"}
+env_logger = { version = "0.11.3" }
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
 lettre = { version = "0.11.6", default-features = false, features = ["builder", "native-tls", "smtp-transport"] }
 rustls-webpki = { version = "0.102.0-alpha.7", default-features = false }

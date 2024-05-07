@@ -11,8 +11,8 @@ use crate::{current_millis, error, project, WebResult};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 
-use super::responses::PostProjectResponse;
 use super::{validate_description, validate_display_name, validate_name};
+use super::responses::PostProjectResponse;
 
 // GET v1/projects/USER_NAME/PROJECT_NAME
 pub async fn get_project(username: String, project_name: String, db_pool: PgPool) -> WebResult<impl Reply> {
@@ -43,7 +43,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
       return Ok(json(&PostProjectResponse {
         success: false,
         created: false,
-        message
+        message,
       }));
     }
   };
@@ -53,7 +53,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
       return Ok(json(&PostProjectResponse {
         success: false,
         created: false,
-        message
+        message,
       }));
     }
   };
@@ -63,7 +63,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
       return Ok(json(&PostProjectResponse {
         success: false,
         created: false,
-        message
+        message,
       }));
     }
   };
@@ -76,16 +76,16 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
         return Ok(json(&PostProjectResponse {
           success: false,
           created: false,
-          message: "Projekt już istnieje!".into()
+          message: "Projekt już istnieje!".into(),
         }));
       }
-    },
+    }
     Err(err) => {
       warn!("Failed to check exist project: {err}");
       return Ok(json(&PostProjectResponse {
         success: false,
         created: false,
-        message: "Nie udało się sprawdzić dostępnośći projektu.".into()
+        message: "Nie udało się sprawdzić dostępności projektu.".into(),
       }));
     }
   }
@@ -113,7 +113,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
       Ok(json(&PostProjectResponse {
         success: true,
         created: true,
-        message: "Pomyślnie utworzono.".into()
+        message: "Pomyślnie utworzono.".into(),
       }))
     }
     Err(err) => {

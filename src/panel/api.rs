@@ -10,7 +10,7 @@ use crate::{error, utils::addr_to_string, WebResult};
 
 #[derive(Serialize)]
 struct UserCountResponse {
-  usercount: i16
+  usercount: i16,
 }
 
 // v1/panel/usercount
@@ -31,7 +31,7 @@ pub async fn panel_handler(peer: Option<SocketAddr>, user_uid: Option<Uuid>, db_
       }
       // User Found
       user.unwrap()
-    },
+    }
     Err(err) => {
       // Query failed
       warn!("Peer {} ({}) tried to get panel. Failed to get user: {}", addr_to_string(&peer), &user_uid, err);

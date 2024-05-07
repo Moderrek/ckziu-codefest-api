@@ -14,6 +14,6 @@ pub async fn create_pool() -> Result<PgPool, Error> {
   Ok(pool)
 }
 
-pub fn with_db(pool: PgPool) -> impl Filter<Extract = (PgPool,), Error = Infallible> + Clone {
+pub fn with_db(pool: PgPool) -> impl Filter<Extract=(PgPool, ), Error=Infallible> + Clone {
   warp::any().map(move || pool.clone())
 }

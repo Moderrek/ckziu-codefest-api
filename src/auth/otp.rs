@@ -5,8 +5,8 @@ const OTP_DIGITS: [char; 10] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
 
 #[derive(Debug, Clone)]
 pub struct Otp {
-    pub code: String,
-    pub expires_on: DateTime<Utc>,
+  pub code: String,
+  pub expires_on: DateTime<Utc>,
 }
 
 impl Otp {
@@ -31,12 +31,12 @@ impl Otp {
 pub fn generate_otp_code(length: usize) -> String {
   // Reserving memory space
   let mut buffer = String::with_capacity(length);
-  // Create randomiser
-  let mut randomiser = rand::thread_rng();
+  // Create randomizer
+  let mut randomizer = rand::thread_rng();
 
   // Randomise digits and push them to buffer
   for _ in 0..length {
-      let digit = *OTP_DIGITS.choose(&mut randomiser).unwrap();
+    let digit = *OTP_DIGITS.choose(&mut randomizer).unwrap();
     buffer.push(digit);
   }
 

@@ -6,14 +6,14 @@ use warp::header::headers_cloned;
 use warp::http::{HeaderMap, HeaderValue};
 use warp::http::header::AUTHORIZATION;
 
-use crate::auth::jwt::Claims;
 use crate::{error, WebResult};
+use crate::auth::jwt::Claims;
 
 const BEARER: &str = "Bearer ";
 
 pub fn with_auth() -> impl Filter<Extract=(Option<Uuid>, ), Error=Rejection> + Clone {
   headers_cloned()
-    .map(move |headers: HeaderMap<HeaderValue>| (headers))
+    .map(move |headers: HeaderMap<HeaderValue>| headers)
     .and_then(authorize)
 }
 
