@@ -16,7 +16,7 @@ use crate::{auth, current_millis, OTPCodes, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
 use crate::auth::models::AuthUser;
-use crate::auth::otp::OTP;
+use crate::auth::otp::Otp;
 use crate::auth::password::password_verify;
 use crate::auth::req::{InfoResponse, LoginCredentialsBody, LoginResponse, OTPRequest, OTPResponse, PreLoginBody, PreLoginResponse, RegisterRequest, RegisterResponse};
 use crate::mail::send_otp_code;
@@ -173,7 +173,7 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
   
   let mail = body.email;
   
-  let otp = OTP::new_expirable_code(6, Duration::seconds(60));
+  let otp = Otp::new_expirable_code(6, Duration::seconds(60));
 
   // Async save code in pair with email
   otp_codes.write().await.insert(
@@ -196,7 +196,7 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
 }
 
 // v1/auth/register
-pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, OTP>>>, key: EncodingKey, db: PgPool,  body: RegisterRequest) -> WebResult<impl Reply> {
+pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, Otp>>>, key: EncodingKey, db: PgPool,  body: RegisterRequest) -> WebResult<impl Reply> {
   debug!("Peer {} (using {}) trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &body.email, &body.name, &body.email, &body.otp);
   
   // Validation

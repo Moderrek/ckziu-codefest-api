@@ -17,7 +17,7 @@ use warp::{reply, Filter, Rejection, Reply};
 
 use error::Error;
 
-use crate::auth::otp::OTP;
+use crate::auth::otp::Otp;
 use crate::database::with_db;
 use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
@@ -126,7 +126,7 @@ pub fn current_millis() -> i64 {
     Utc::now().timestamp_millis()
 }
 
-type OTPCodes = Arc<RwLock<HashMap<String, OTP>>>;
+type OTPCodes = Arc<RwLock<HashMap<String, Otp>>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -179,7 +179,7 @@ async fn main() -> Result<()> {
     info!("Init database pool..");
     let db_pool = database::create_pool().await.unwrap();
 
-    let otp_codes: Arc<RwLock<HashMap<String, OTP>>> = Arc::new(RwLock::new(HashMap::new()));
+    let otp_codes: Arc<RwLock<HashMap<String, Otp>>> = Arc::new(RwLock::new(HashMap::new()));
     let otp_codes = warp::any().map(move || otp_codes.clone());
 
     let key = EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes());

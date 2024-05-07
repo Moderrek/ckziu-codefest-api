@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 
-use serde::de;
-use warp::reject::Rejection;
-
 pub mod models;
 pub mod responses;
 pub mod api;
@@ -34,8 +31,6 @@ pub fn validate_name(name: String) -> Result<String, String> {
             true => *legalize_chars.get(&val).unwrap(),
             _ => val,
         };
-        
-
         builder.push(val);
     }
 
