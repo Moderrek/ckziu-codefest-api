@@ -20,7 +20,7 @@ pub async fn get_projects_by_ownername(
   username: &String,
   pool: &PgPool,
 ) -> Result<Vec<Project>, Box<dyn std::error::Error>> {
-  let query = r"SELECT projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, user.id AS userid, user.name AS username FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 ORDER BY projects.updated_at";
+  let query = r"SELECT projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, users.id AS userid, users.name AS username FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 ORDER BY projects.updated_at";
 
   let result: Vec<Project> = sqlx::query_as(query).bind(username).fetch_all(pool).await?;
 
@@ -32,7 +32,7 @@ pub async fn get_project_by_ownername_projectname(
   project_name: &String,
   pool: &PgPool,
 ) -> Result<Option<Project>, Box<dyn std::error::Error>> {
-  let query = r"SELECT * FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 AND projects.name = $2 ORDER BY projects.updated_at LIMIT 1";
+  let query = r"SELECT projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, users.id AS userid, users.name AS username FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 AND projects.name = $2 LIMIT 1";
 
   let result: Option<Project> = sqlx::query_as(query)
     .bind(username)
