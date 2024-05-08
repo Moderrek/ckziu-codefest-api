@@ -9,6 +9,7 @@ use crate::{current_millis, error, WebResult};
 use crate::user::db;
 use crate::user::responses::{UpdateBioBody, UpdateBioResponse, UpdateDisplayNameBody};
 
+// v1/users/USERNAME
 pub async fn get_user(username: String, db_pool: PgPool) -> WebResult<impl Reply> {
   match db::get_user(&username, &db_pool).await {
     Ok(response) => {

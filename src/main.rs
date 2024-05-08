@@ -37,89 +37,10 @@ pub mod utils;
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
 
-pub async fn get_articles_handler() -> WebResult<impl Reply> {
-  info!("Article sent!");
-  Ok(json(&[
-    Article::new(
-      "CKZiU CodeFest API".into(),
-      "Tymon Woźniak".into(),
-      "Uruchomienie API!".into(),
-    ),
-    Article::new(
-      "Tytuł".into(),
-      "Tymon Woźniak".into(),
-      "Opis wspierający UTF-8".into(),
-    ),
-    Article::new(
-      "Testowy artykuł".into(),
-      "Tymon Woźniak".into(),
-      "Opis wspierający UTF-8".into(),
-    ),
-    Article::new(
-      "Testowy artykuł".into(),
-      "Tymon Woźniak".into(),
-      "Opis wspierający UTF-8".into(),
-    ),
-    Article::new(
-      "Testowy artykuł".into(),
-      "Tymon Woźniak".into(),
-      "Opis wspierający UTF-8".into(),
-    ),
-  ]))
-}
-
 pub async fn get_ckziu_news_handler() -> WebResult<impl Reply> {
   info!("Scraping articles!");
   let news = async_scrap_cez_news().await.unwrap();
   Ok(json(&news))
-}
-
-pub async fn trending_projects_handler() -> WebResult<impl Reply> {
-  info!("Trending projects!");
-  Ok(json(&[
-    Project {
-      display_name: "Moderrkowo".into(),
-      author: "moderr".into(),
-      description: "Serwer Minecraft".into(),
-      thumbnail_url: "https://static.planetminecraft.com/files/image/minecraft/server/2021/704/14581861-image_l.jpg".into(),
-      likes: 0,
-    },
-    Project {
-      display_name: "C-Edit".into(),
-      author: "drakvlaa".into(),
-      description: "C++ program to make custom cmd shortcut commands".into(),
-      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
-      likes: 2,
-    },
-    Project {
-      display_name: "KittyCode".into(),
-      author: "drakvlaa".into(),
-      description: "Edytor kodu uwu".into(),
-      thumbnail_url: "https://media.pocketgamer.com/artwork/na-33163-1629209861/Kitty-redeem-codes-header_jpeg_820.jpg".into(),
-      likes: 64420420,
-    },
-    Project {
-      display_name: "C-Edit".into(),
-      author: "drakvlaa".into(),
-      description: "C++ program to make custom cmd shortcut commands".into(),
-      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
-      likes: 7,
-    },
-    Project {
-      display_name: "C-Edit".into(),
-      author: "drakvlaa".into(),
-      description: "C++ program to make custom cmd shortcut commands".into(),
-      thumbnail_url: "https://avatars.githubusercontent.com/u/66324421?v=4".into(),
-      likes: 2,
-    },
-    Project {
-      display_name: "ClaraEngine".into(),
-      author: "drakvlaa".into(),
-      description: "Silnik 3D do tworzenia gier video na platformę Windows.".into(),
-      thumbnail_url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQz3e4j2AY0Rn7SFpOpQyge9MebJK8BvlI4UhnU9RNgxQ&s".into(),
-      likes: 3,
-    }
-  ]))
 }
 
 pub fn current_millis() -> i64 {
@@ -202,17 +123,9 @@ async fn main() -> Result<()> {
     })
   });
 
-  let articles = warp::path!("article")
-    .and(warp::get())
-    .and_then(get_articles_handler);
-
   let ckziu_news = warp::path!("ckziu" / "news")
     .and(warp::get())
     .and_then(get_ckziu_news_handler);
-
-  let trending_projects = warp::path!("trending" / "projects")
-    .and(warp::get())
-    .and_then(trending_projects_handler);
 
   let auth = warp::path!("auth" / ..);
 
@@ -333,9 +246,7 @@ async fn main() -> Result<()> {
         .or(update_user_displayname)
         .or(status)
         .or(ckziu_news)
-        .or(articles)
         .or(options_route)
-        .or(trending_projects)
         .or(projects_get)
         .or(projects_post)
         .or(profile_get)
