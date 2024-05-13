@@ -25,8 +25,32 @@ pub async fn get_user(username: String, db_pool: PgPool) -> WebResult<impl Reply
   Err(reject::custom(error::Error::UserNotFound))
 }
 
-pub async fn get_profile(username: String, db_pool: PgPool) -> WebResult<impl Reply> {
-  match db::get_profile(&username, &db_pool).await {
+pub async fn is_authorized(user_uid: &Option<Uuid>, username: &String, db_pool: &PgPool) -> bool {
+  if user_uid.is_none() {
+    return false;
+  }
+  let user_uid = user_uid.unwrap();
+  match db::get_username(&user_uid, db_pool).await {
+    Ok(fetched) => {
+      if let Some(associated_name) = fetched {
+        let associated_name = associated_name.0;
+
+        return associated_name.eq(username);
+      }
+    }
+    Err(err) => {
+      warn!("Failed to check authorized: {err}");
+    }
+  }
+  false
+}
+
+pub async fn get_profile(username: String, auth: Option<Uuid>, db_pool: PgPool) -> WebResult<impl Reply> {
+  let username = username.to_lowercase().trim().to_string();
+
+  let is_authorized = is_authorized(&auth, &username, &db_pool).await;
+
+  match db::get_profile(&username, is_authorized, &db_pool).await {
     Ok(response) => {
       if let Some(profile) = response {
         return Ok(json(&profile));

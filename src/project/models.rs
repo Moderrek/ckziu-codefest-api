@@ -15,6 +15,11 @@ pub struct Project {
   pub private: bool,
   pub description: Option<String>,
 
+  pub content: String,
+  pub github_url: Option<String>,
+  pub website_url: Option<String>,
+
+  pub tournament: bool,
   pub likes: i32,
 
   #[serde(with = "ts_milliseconds")]

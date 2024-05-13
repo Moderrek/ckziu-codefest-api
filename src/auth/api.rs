@@ -11,7 +11,7 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::{auth, current_millis, OTPCodes, WebResult};
+use crate::{auth, current_millis, error, OTPCodes, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
 use crate::auth::models::AuthUser;
@@ -24,7 +24,8 @@ use crate::utils::addr_to_string;
 
 // v1/auth/prelogin
 pub async fn prelogin(addr: Option<SocketAddr>, db: PgPool, body: PreLoginBody) -> WebResult<impl Reply> {
-  match db::is_user_exists(&body.login, &db).await {
+  let login = body.login.trim().to_string();
+  match db::is_user_exists(&login, &db).await {
     Ok(exists) => {
       if exists {
         info!("Peer {} (using {}) received user is registered.", addr_to_string(&addr), &body.login);
@@ -43,7 +44,7 @@ pub async fn prelogin(addr: Option<SocketAddr>, db: PgPool, body: PreLoginBody) 
     }
     Err(err) => {
       warn!("Peer {} (using {}) cannot prelogin: {}", addr_to_string(&addr), &body.login, err);
-      Err(reject::custom(crate::error::Error::ServerProblem))
+      Err(reject::custom(error::Error::ServerProblem))
     }
   }
 }
@@ -55,7 +56,7 @@ pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Encodi
     Ok(exists) => exists,
     Err(err) => {
       warn!("Failed to check is user exists: {}", err);
-      return Err(reject::custom(crate::error::Error::ServerProblem));
+      return Err(reject::custom(error::Error::ServerProblem));
     }
   };
   info!("Queried login credentials in {}ms", Utc::now().timestamp_millis() - start);
@@ -76,7 +77,7 @@ pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Encodi
     Ok(authorized) => authorized,
     Err(err) => {
       warn!("Failed to verify password: {}", err);
-      return Err(reject::custom(crate::error::Error::ServerProblem));
+      return Err(reject::custom(error::Error::ServerProblem));
     }
   };
 
@@ -93,7 +94,7 @@ pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Encodi
     Ok(token) => token,
     Err(err) => {
       warn!("Failed to create authorization token: {}", err);
-      return Err(reject::custom(crate::error::Error::ServerProblem));
+      return Err(reject::custom(error::Error::ServerProblem));
     }
   };
 
@@ -109,7 +110,7 @@ pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Encodi
 pub async fn info(userid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
   // Unauthorized
   if userid.is_none() {
-    return Err(reject::custom(crate::error::Error::Unauthorized));
+    return Err(reject::custom(error::Error::Unauthorized));
   }
 
   // Authorized
@@ -121,7 +122,7 @@ pub async fn info(userid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
     }
     Err(err) => {
       warn!("Failed to get info: {}", err);
-      Err(reject::custom(crate::error::Error::ServerProblem))
+      Err(reject::custom(error::Error::ServerProblem))
     }
   }
 }
@@ -154,7 +155,23 @@ fn is_name_valid(name: &str) -> bool {
   !has_whitespace && !has_upper && has_lower && name.len() >= 3 && name.len() <= 48 && !name.starts_with('-') && !name.ends_with('-')
 }
 
-fn is_mail_valid(_mail: &str) -> bool {
+fn is_mail_valid(mail: &str) -> bool {
+  let mail: String = mail.to_lowercase().trim_start().trim_end().to_string();
+
+  // development case
+  if mail == "tymonek12345@gmail.com" {
+    return true;
+  }
+  if mail == "filip.sobczuk@o2.pl" {
+    return true;
+  }
+
+  if mail.len() <= CKZIU_MAIL_DOMAIN.len() {
+    return false;
+  }
+  if !mail.ends_with(CKZIU_MAIL_DOMAIN) {
+    return false;
+  }
   true
 }
 
@@ -162,16 +179,16 @@ const CKZIU_MAIL_DOMAIN: &str = "ckziu.elodz.edu.pl";
 
 // v1/auth/otp
 pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_codes: OTPCodes) -> WebResult<impl Reply> {
+  let mail: String = body.email.to_lowercase().trim().to_string();
+
   // Validate
-  if !body.email.ends_with(CKZIU_MAIL_DOMAIN) {
+  if !is_mail_valid(mail.as_str()) {
     info!("Peer {} (using {}) tried to receive OTP. Illegal mail.", addr_to_string(&addr), &body.email);
     return Ok(json(&OTPResponse {
       success: false,
-      message: "Nielegalny mail.".into(),
+      message: "Podano nieprawidłowego maila.".into(),
     }));
   }
-
-  let mail = body.email;
 
   let otp = Otp::new_expirable_code(6, Duration::seconds(60));
 
@@ -197,7 +214,8 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
 
 // v1/auth/register
 pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, Otp>>>, key: EncodingKey, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
-  debug!("Peer {} (using {}) trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &body.email, &body.name, &body.email, &body.otp);
+  let mail: String = body.email.to_lowercase().trim().to_string();
+  debug!("Peer {} (using {}) trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &mail, &body.name, &body.email, &body.otp);
 
   // Validation
   if !is_name_valid(body.name.as_str()) {
@@ -209,7 +227,7 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
       token: None,
     }));
   }
-  if !is_mail_valid(body.email.as_str()) {
+  if !is_mail_valid(mail.as_str()) {
     info!("Peer {} (using {}) failed to register. Illegal mail.", addr_to_string(&addr), &body.password);
     return Ok(json(&RegisterResponse {
       success: false,
@@ -229,10 +247,10 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
   }
 
   // Check OTP Code
-  match otp_codes.clone().read().await.get(&body.email) {
+  match otp_codes.clone().read().await.get(&mail) {
     None => {
       // No matching OTP
-      info!("Peer {} (using {}) failed to register. No matching OTP for that mail.", addr_to_string(&addr), &body.email);
+      info!("Peer {} (using {}) failed to register. No matching OTP for that mail.", addr_to_string(&addr), &mail);
       return Ok(json(&RegisterResponse {
         success: false,
         name: None,
@@ -242,9 +260,9 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
     }
     Some(otp) => {
       if otp.is_expired() {
-        info!("Peer {} (using {}) failed to register. Tried expired OTP.", addr_to_string(&addr), &body.email);
+        info!("Peer {} (using {}) failed to register. Tried expired OTP.", addr_to_string(&addr), &mail);
         // Remove code later async
-        let to_remove = body.email.clone();
+        let to_remove = mail.clone();
         tokio::spawn(async move {
           otp_codes.clone().write().await.remove(&to_remove);
         });
@@ -257,8 +275,9 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
       }
 
       // Invalid OTP
-      if otp.check(&body.otp) {
-        info!("Peer {} (using {}) failed to register. Tried invalid OTP.", addr_to_string(&addr), &body.email);
+      let otp_to_check = body.otp.trim().to_string();
+      if !otp.check(&otp_to_check) {
+        info!("Peer {} (using {}) failed to register. Tried invalid OTP. '{}' != '{}'", addr_to_string(&addr), &mail, otp.code, otp_to_check);
         return Ok(json(&RegisterResponse {
           success: false,
           name: None,
@@ -267,7 +286,7 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
         }));
       }
       // Success. Remove code later async
-      let to_remove = body.email.clone();
+      let to_remove = mail.clone();
       tokio::spawn(async move {
         otp_codes.clone().write().await.remove(&to_remove);
       });
@@ -275,10 +294,10 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
   };
 
   // Check exists for faster performance
-  match db::is_user_exists(&body.email, &db).await {
+  match db::is_user_exists(&mail, &db).await {
     Ok(exists) => {
       if exists {
-        info!("{} failed to register cause user exists '{}'", addr_to_string(&addr), &body.email);
+        info!("{} failed to register cause user exists '{}'", addr_to_string(&addr), &mail);
         return Ok(json(&RegisterResponse {
           success: false,
           name: None,
@@ -291,7 +310,7 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
     Err(err) => {
       // db failed
       warn!("Failed to check is user exists: {}", err);
-      return Err(reject::custom(crate::error::Error::ServerProblem));
+      return Err(reject::custom(error::Error::ServerProblem));
     }
   }
 
@@ -316,7 +335,7 @@ pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<St
 
   let auth_user = AuthUser {
     id,
-    mail: body.email.trim().to_lowercase(),
+    mail,
     password: hashed_password,
   };
 

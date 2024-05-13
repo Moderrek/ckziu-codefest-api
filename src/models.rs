@@ -33,19 +33,9 @@ pub struct Article {
   pub description: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct CkziuNews {
   pub title: String,
   pub description: String,
   pub url: String,
-}
-
-impl Article {
-  pub fn new(title: String, author: String, description: String) -> Self {
-    Self {
-      title,
-      author,
-      description,
-    }
-  }
 }

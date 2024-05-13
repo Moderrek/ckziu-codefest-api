@@ -3,10 +3,11 @@ extern crate dotenv_codegen;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, Duration, Utc};
 use dotenv::dotenv;
 use jsonwebtoken::EncodingKey;
 use log::{error, info, warn};
@@ -17,10 +18,13 @@ use warp::{Filter, Rejection, reply, Reply};
 
 use error::Error;
 
+use crate::auth::header::with_auth;
 use crate::auth::otp::Otp;
 use crate::database::with_db;
-use crate::models::{Article, Project, ServerServiceStatus, ServerStatus};
+use crate::models::{ServerServiceStatus, ServerStatus};
 use crate::scrap::async_scrap_cez_news;
+
+use self::models::CkziuNews;
 
 mod auth;
 mod cache;
@@ -33,13 +37,19 @@ mod project;
 mod scrap;
 mod user;
 pub mod utils;
+mod upload;
+mod file;
 
 type Result<T> = std::result::Result<T, Error>;
 type WebResult<T> = std::result::Result<T, Rejection>;
 
-pub async fn get_ckziu_news_handler() -> WebResult<impl Reply> {
-  info!("Scraping articles!");
-  let news = async_scrap_cez_news().await.unwrap();
+struct ScrapedCkziuNews {
+  news: Vec<CkziuNews>,
+  scrape_interval: Duration,
+  at: DateTime<Utc>,
+}
+
+async fn get_ckziu_news_handler(news: Vec<CkziuNews>) -> WebResult<impl Reply> {
   Ok(json(&news))
 }
 
@@ -106,18 +116,21 @@ async fn main() -> Result<()> {
   let key = EncodingKey::from_secret(dotenv!("TOKEN_SECRET").as_bytes());
   let jwt_key = warp::any().map(move || key.clone());
 
+  let news = async_scrap_cez_news().await.unwrap();
+  let news = warp::any().map(move || news.clone());
+
   let version1 = warp::path!("v1" / ..);
 
   let status = warp::path!("status").map(|| {
     json(&ServerStatus {
       name: "ckziu-codefest-api".into(),
       author: "Tymon Woźniak".into(),
-      version: "dev-0.1".into(),
+      version: "0.9".into(),
       services: ServerServiceStatus {
-        database: false,
-        mail: false,
+        database: true,
+        mail: true,
         login_service: true,
-        cez_website: false,
+        cez_website: true,
         gateway: false,
       },
     })
@@ -125,13 +138,14 @@ async fn main() -> Result<()> {
 
   let ckziu_news = warp::path!("ckziu" / "news")
     .and(warp::get())
+    .and(news.clone())
     .and_then(get_ckziu_news_handler);
 
   let auth = warp::path!("auth" / ..);
 
   let auth_info = warp::path!("info")
     .and(warp::get())
-    .and(auth::header::with_auth())
+    .and(with_auth())
     .and(with_db(db_pool.clone()))
     .and_then(auth::api::info);
 
@@ -173,7 +187,7 @@ async fn main() -> Result<()> {
   let panel = warp::path!("panel")
     .and(warp::get())
     .and(warp::addr::remote())
-    .and(auth::header::with_auth())
+    .and(with_auth())
     .and(with_db(db_pool.clone()))
     .and_then(panel::api::panel_handler);
 
@@ -189,7 +203,7 @@ async fn main() -> Result<()> {
       "Content-Type",
       "Authorization",
     ])
-    .allow_methods(vec!["POST", "GET"]);
+    .allow_methods(vec!["POST", "GET", "PATCH", "DELETE"]);
 
   let options_route =
     warp::options().map(|| reply::with_header("OK", "Access-Control-Allow-Origin", "*"));
@@ -200,12 +214,27 @@ async fn main() -> Result<()> {
 
   let projects_get = warp::path!("projects" / String / String)
     .and(warp::get())
+    .and(with_auth())
     .and(with_db(db_pool.clone()))
     .and_then(project::api::get_project);
 
+  let projects_patch = warp::path!("projects" / String / String)
+    .and(warp::patch())
+    .and(with_auth())
+    .and(warp::body::content_length_limit(1024 * 16))
+    .and(warp::body::json())
+    .and(with_db(db_pool.clone()))
+    .and_then(project::api::patch_project);
+
+  let projects_delete = warp::path!("projects" / String / String)
+    .and(warp::delete())
+    .and(with_auth())
+    .and(with_db(db_pool.clone()))
+    .and_then(project::api::delete_project);
+
   let projects_post = warp::path!("project" / "create")
     .and(warp::post())
-    .and(auth::header::with_auth())
+    .and(with_auth())
     .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(with_db(db_pool.clone()))
@@ -213,6 +242,7 @@ async fn main() -> Result<()> {
 
   let profile_get = warp::path!("profile" / String)
     .and(warp::get())
+    .and(with_auth())
     .and(with_db(db_pool.clone()))
     .and_then(user::api::get_profile);
 
@@ -226,11 +256,27 @@ async fn main() -> Result<()> {
 
   let update_user_displayname = warp::path!("update" / "user" / "displayname")
     .and(warp::post())
-    .and(auth::header::with_auth())
+    .and(with_auth())
     .and(warp::body::content_length_limit(1024 * 16))
     .and(warp::body::json())
     .and(with_db(db_pool.clone()))
     .and_then(user::api::update_displayname);
+
+  let upload_avatar = warp::path!("upload" / "avatar")
+    .and(warp::post())
+    .and(with_auth())
+    .and(warp::multipart::form().max_length(8192 * 1024))
+    .and_then(upload::api::upload_profile_picture);
+
+  let get_avatar = warp::path!("avatars" / String)
+    .and(warp::get())
+    .and(with_db(db_pool.clone()))
+    .and_then(file::get_profile);
+
+  let newest_project = warp::path!("projects")
+  .and(warp::get())
+  .and(with_db(db_pool.clone()))
+  .and_then(project::api::new_projects);
 
   let routes = version1
     .and(
@@ -242,13 +288,18 @@ async fn main() -> Result<()> {
           .or(auth_info),
       )
         .or(panel)
+        .or(get_avatar)
+        .or(upload_avatar)
         .or(update_user_bio)
         .or(update_user_displayname)
         .or(status)
         .or(ckziu_news)
         .or(options_route)
+        .or(newest_project)
         .or(projects_get)
         .or(projects_post)
+        .or(projects_patch)
+        .or(projects_delete)
         .or(profile_get)
         .or(users_get),
     )

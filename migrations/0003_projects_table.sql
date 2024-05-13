@@ -7,6 +7,7 @@ create table projects
     owner_id     uuid                     not null,
 
     private      bool                     not null default (false),
+    thumbnail    varchar                           default (null),
     description  varchar                           default (null),
 
     likes        int                      not null default (0),

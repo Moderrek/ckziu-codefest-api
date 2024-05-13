@@ -1,5 +1,5 @@
 use jsonwebtoken::{Algorithm, decode, DecodingKey, Validation};
-use log::warn;
+use log::info;
 use uuid::Uuid;
 use warp::{Filter, Rejection};
 use warp::header::headers_cloned;
@@ -27,7 +27,8 @@ async fn authorize(headers: HeaderMap<HeaderValue>) -> WebResult<Option<Uuid>> {
       ) {
         Ok(decoded) => decoded,
         Err(err) => {
-          warn!("Encountered error {}", err);
+          // Maybe expired token
+          info!("Someone tried to authorize: {err}");
           return Ok(None);
         }
       };
@@ -36,8 +37,8 @@ async fn authorize(headers: HeaderMap<HeaderValue>) -> WebResult<Option<Uuid>> {
 
       Ok(Some(uid))
     }
-    Err(err) => {
-      warn!("Encountered error {}", err);
+    Err(_) => {
+      // Missing or invalid auth header => unauthorized
       Ok(None)
     }
   }

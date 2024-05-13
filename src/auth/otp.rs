@@ -23,7 +23,7 @@ impl Otp {
   }
 
   pub fn check(&self, other_code: &String) -> bool {
-    self.code == *other_code
+    self.code.eq(other_code)
   }
 }
 
