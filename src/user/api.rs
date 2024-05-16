@@ -14,13 +14,13 @@ use super::responses::PaginationQuery;
 use super::responses::PatchUserBody;
 
 // v1/users
-pub async fn list_users(query: PaginationQuery, db_pool: PgPool) -> WebResult<impl Reply> {
+pub async fn list_users(query: PaginationQuery, database: PgPool) -> WebResult<impl Reply> {
   let page = query.page.unwrap_or(0);
 
-  let users = match db::get_users(10, page, &db_pool).await {
+  let users = match db::get_users(10, page, &database).await {
     Ok(users) => users,
     Err(err) => {
-      warn!("Failed to get users: {err}");
+      warn!("Failed to get users page ({page}.): {err}");
       return Err(reject::custom(error::Error::ServerProblem));
     }
   };
@@ -37,7 +37,7 @@ pub async fn get_user(username: String, db_pool: PgPool) -> WebResult<impl Reply
       }
     }
     Err(err) => {
-      warn!("Detected server problem @ DB USER GET: {}", err);
+      warn!("Failed to get user '{username}': {err}");
       return Err(reject::custom(error::Error::ServerProblem));
     }
   }

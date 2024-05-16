@@ -172,7 +172,7 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
 }
 
 // v1/auth/register
-pub async fn register(addr: Option<SocketAddr>, otp_codes: Arc<RwLock<HashMap<String, Otp>>>, key: EncodingKey, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
+pub async fn register(addr: Option<SocketAddr>, otp_codes: OTPCodes, key: EncodingKey, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
   debug!("Peer {} trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &body.name, &body.email, &body.otp);
 
   // Validation
