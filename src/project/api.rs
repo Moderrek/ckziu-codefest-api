@@ -1,25 +1,21 @@
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
 use log::{info, warn};
-use reqwest::StatusCode;
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
-use sqlx::Execute;
 use sqlx::PgPool;
-use sqlx::Postgres;
-use sqlx::QueryBuilder;
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
 use project::db;
 
-use crate::{current_millis, error, project, WebResult};
+use crate::utils::{current_millis, validate_description, validate_display_name, validate_name};
+use crate::{error, project, WebResult};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 use crate::user::api::is_authorized;
 
-use super::{validate_description, validate_display_name, validate_name};
 use super::responses::PostProjectResponse;
 
 #[derive(Serialize, FromRow)]
@@ -55,6 +51,11 @@ pub async fn new_projects(db_pool: PgPool) -> WebResult<impl Reply> {
       return Err(reject::custom(error::Error::ServerProblem));
     }
   }
+}
+
+// GET v1/projects
+pub async fn list_projects(db_pool: PgPool) -> WebResult<impl Reply> {
+  Ok("LIST")
 }
 
 // GET v1/projects/USER_NAME/PROJECT_NAME

@@ -26,6 +26,17 @@ pub struct ProfileResponse {
 }
 
 #[derive(Deserialize)]
+pub struct PatchUserBody {
+  pub display_name: Option<String>,
+  pub bio: Option<String>
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PaginationQuery {
+  pub page: Option<u32>
+}
+
+#[derive(Deserialize)]
 pub struct UpdateBioBody {
   pub bio: String,
 }

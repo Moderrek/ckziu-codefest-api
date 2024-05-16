@@ -21,6 +21,16 @@ pub async fn get_user(
   Ok(result)
 }
 
+pub async fn get_users(page_size: u32, page: u32, pool: &PgPool) -> Result<Vec<User>, Box<dyn std::error::Error>> {
+  let users: Vec<User> = sqlx::query_as(r"SELECT * FROM users ORDER BY updated_at DESC LIMIT $1 OFFSET $2").bind(page_size as i32).bind(page as i32 * page_size as i32).fetch_all(pool).await?;
+  Ok(users)
+}
+
+pub async fn is_user_exists(uuid: &Uuid, pool: &PgPool) -> Result<bool, Box<dyn std::error::Error>> {
+  let username = get_username(uuid, pool).await?;
+  Ok(username.is_some())
+}
+
 pub async fn get_username(uuid: &Uuid, pool: &PgPool) -> Result<Option<(String, )>, Box<dyn std::error::Error>> {
   let result: Option<(String, )> = sqlx::query_as(r"SELECT name FROM users WHERE id = $1 LIMIT 1")
     .bind(uuid)

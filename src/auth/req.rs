@@ -52,7 +52,8 @@ pub struct LoginResponse {
 
 #[derive(Serialize)]
 pub struct InfoResponse {
-  pub name: String,
+  pub authorized: bool,
+  pub name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
