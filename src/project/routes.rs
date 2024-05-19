@@ -1,12 +1,11 @@
 use sqlx::PgPool;
 use warp::Filter;
 
-use crate::{auth::header::with_auth, database::with_db};
+use crate::{auth::header::with_auth, db::with_db};
 
 use super::api;
 
-pub fn routes(db_pool: &PgPool) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-
+pub fn routes(db_pool: &PgPool) -> impl Filter<Extract=impl warp::Reply, Error=warp::Rejection> + Clone {
   let post = warp::path!("projects")
     .and(warp::post())
     .and(warp::path::end())

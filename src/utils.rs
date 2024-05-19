@@ -17,7 +17,7 @@ pub fn addr_to_string(addr: &Option<SocketAddr>) -> String {
 
 pub fn validate_password(password: String) -> Result<String, String> {
   if password.chars().count() < 8 {
-    // Password must be longer than 8 characters.
+    // The Password must be longer than 8 characters.
     return Err("Hasło musi mieć conajmniej 8 znaków".into());
   }
   for c in password.chars() {
@@ -39,7 +39,7 @@ pub fn validate_mail(mail: String) -> Result<String, String> {
 
   // Development case
   if mail == "tymonek12345@gmail.com" || mail == "filip.sobczuk@o2.pl" {
-   return Ok(mail);
+    return Ok(mail);
   }
 
   if mail.len() <= CKZIU_MAIL_DOMAIN.len() {
@@ -48,14 +48,14 @@ pub fn validate_mail(mail: String) -> Result<String, String> {
   }
   if !mail.ends_with(CKZIU_MAIL_DOMAIN) {
     // Mail domain is unallowed
-    return Err("Mail nie należy do szkoły CKZiU w Łodzi".into())
+    return Err("Mail nie należy do szkoły CKZiU w Łodzi".into());
   }
 
   Ok(mail)
 }
 
 pub fn validate_name(name: String) -> Result<String, String> {
-  // Name must be always lowercased
+  // Name must always be lower cased
   let name = name
     .trim_start()
     .trim_end()
@@ -104,7 +104,7 @@ pub fn validate_name(name: String) -> Result<String, String> {
       true => *diacritic.get(&val).unwrap(),
       _ => val,
     };
-    if !(val.is_ascii() || val.is_digit(10) || val == '-') {
+    if !(val.is_ascii() || val.is_ascii_digit() || val == '-') {
       // The name contains illegal character '?'
       return Err(format!("Nazwa zawiera nielegalny znak '{val}'"));
     }

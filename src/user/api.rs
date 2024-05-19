@@ -5,10 +5,10 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::utils::current_millis;
 use crate::{error, WebResult};
 use crate::user::db;
 use crate::user::responses::{UpdateBioBody, UpdateBioResponse, UpdateDisplayNameBody};
+use crate::utils::current_millis;
 
 use super::responses::PaginationQuery;
 use super::responses::PatchUserBody;

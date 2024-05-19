@@ -11,7 +11,7 @@ use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::{auth, error, user, utils, OTPCodes, WebResult};
+use crate::{auth, error, OTPCodes, user, utils, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
 use crate::auth::models::AuthUser;
@@ -114,7 +114,7 @@ pub async fn info(user_uid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
   if user_uid.is_none() {
     return Ok(json(&InfoResponse {
       authorized: false,
-      name: None
+      name: None,
     }));
   }
   let user_uid = user_uid.unwrap();
@@ -124,7 +124,7 @@ pub async fn info(user_uid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
     Ok(data) => {
       Ok(json(&InfoResponse {
         authorized: true,
-        name: Some(data.0)
+        name: Some(data.0),
       }))
     }
     Err(err) => {
@@ -143,7 +143,7 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
       info!("Peer {} (using {}) tried to receive OTP. Illegal mail. {}", addr_to_string(&addr), &body.email, &message);
       return Ok(json(&OTPResponse {
         success: false,
-        message
+        message,
       }));
     }
   };

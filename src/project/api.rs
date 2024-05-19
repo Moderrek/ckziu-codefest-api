@@ -2,19 +2,19 @@ use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use sqlx::prelude::FromRow;
 use sqlx::PgPool;
+use sqlx::prelude::FromRow;
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
 use project::db;
 
-use crate::utils::{current_millis, validate_description, validate_display_name, validate_name};
 use crate::{error, project, WebResult};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 use crate::user::api::is_authorized;
+use crate::utils::{current_millis, validate_description, validate_display_name, validate_name};
 
 use super::responses::PostProjectResponse;
 
@@ -114,7 +114,7 @@ pub async fn delete_project(username: String, project_name: String, user_uid: Op
   }
   let user_id = user_uid.unwrap();
 
-  // Remove from database
+  // Remove from db
   match db::delete_project(&user_id, &project_name, &db_pool).await {
     Ok(_) => (),
     Err(err) => {
@@ -261,7 +261,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
     updated_at: Utc::now(),
   };
 
-  // Upload to database
+  // Upload to db
   let create_start = current_millis();
   match db::create_project(&project, &db_pool).await {
     Ok(_) => {
