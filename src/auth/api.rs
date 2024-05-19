@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -6,16 +5,15 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::EncodingKey;
 use log::{debug, info, warn};
 use sqlx::PgPool;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
-use crate::{auth, error, OTPCodes, user, utils, WebResult};
+use crate::{auth, error, user, utils, WebResult};
 use crate::auth::db;
 use crate::auth::jwt::create_jwt;
 use crate::auth::models::AuthUser;
-use crate::auth::otp::Otp;
+use crate::auth::otp::{Otp, OtpCodes};
 use crate::auth::password::password_verify;
 use crate::auth::req::{InfoResponse, LoginCredentialsBody, LoginResponse, OTPRequest, OTPResponse, PreLoginBody, PreLoginResponse, RegisterRequest, RegisterResponse};
 use crate::mail::send_otp_code;
@@ -51,7 +49,7 @@ pub async fn prelogin(addr: Option<SocketAddr>, db: PgPool, body: PreLoginBody) 
 }
 
 // v1/auth/login/credentials
-pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: EncodingKey, body: LoginCredentialsBody) -> WebResult<impl Reply> {
+pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Arc<EncodingKey>, body: LoginCredentialsBody) -> WebResult<impl Reply> {
   let login = body.login.trim().into();
   let start = current_millis();
   let data = match db::get_user_password_uuid(&login, &db).await {
@@ -135,7 +133,7 @@ pub async fn info(user_uid: Option<Uuid>, db: PgPool) -> WebResult<impl Reply> {
 }
 
 // v1/auth/otp
-pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_codes: OTPCodes) -> WebResult<impl Reply> {
+pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_codes: OtpCodes) -> WebResult<impl Reply> {
   // Validate
   let mail = match utils::validate_mail(body.email.clone()) {
     Ok(mail) => mail,
@@ -172,7 +170,7 @@ pub async fn auth_otp_handler(addr: Option<SocketAddr>, body: OTPRequest, otp_co
 }
 
 // v1/auth/register
-pub async fn register(addr: Option<SocketAddr>, otp_codes: OTPCodes, key: EncodingKey, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
+pub async fn register(addr: Option<SocketAddr>, otp_codes: OtpCodes, key: Arc<EncodingKey>, db: PgPool, body: RegisterRequest) -> WebResult<impl Reply> {
   debug!("Peer {} trying to register new user '{}' with mail '{}', OTP '{}'", addr_to_string(&addr), &body.name, &body.email, &body.otp);
 
   // Validation

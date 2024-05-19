@@ -45,8 +45,8 @@ pub async fn get_user(username: String, db_pool: PgPool) -> WebResult<impl Reply
 }
 
 // PATCH v1/users/USERNAME
-pub async fn patch_user(username: String, body: PatchUserBody, user_uid: Option<Uuid>, db_pool: PgPool) -> WebResult<impl Reply> {
-  // Reject unatuhorized
+pub async fn patch_user(username: String, _body: PatchUserBody, user_uid: Option<Uuid>, db_pool: PgPool) -> WebResult<impl Reply> {
+  // Reject unauthorized
   if !is_authorized(&user_uid, &username, &db_pool).await {
     return Err(reject::custom(error::Error::Unauthorized));
   }

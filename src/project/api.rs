@@ -12,7 +12,7 @@ use project::db;
 
 use crate::{error, project, WebResult};
 use crate::error::Error;
-use crate::prelude::web_err;
+use crate::prelude::{web_err, web_json};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 use crate::user::api::is_authorized;
@@ -46,9 +46,7 @@ pub struct FullProjectResponse {
 // GET v1/projects
 pub async fn new_projects(db_pool: PgPool) -> WebResult<impl Reply> {
   match db::get_newest_projects(&db_pool).await {
-    Ok(projects) => {
-      Ok(json(&projects))
-    }
+    Ok(projects) => web_json(&projects),
     Err(err) => {
       warn!("Error getting newest projects: {err}");
       web_err(Error::ServerProblem)

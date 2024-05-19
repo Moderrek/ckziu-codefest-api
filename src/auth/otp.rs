@@ -1,5 +1,12 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 use rand::prelude::SliceRandom;
+use tokio::sync::RwLock;
+
+pub type OTPMemory = HashMap<String, Otp>;
+pub type OtpCodes = Arc<RwLock<OTPMemory>>;
 
 const OTP_DIGITS: [char; 10] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -41,4 +48,8 @@ pub fn generate_otp_code(length: usize) -> String {
   }
 
   buffer
+}
+
+pub fn create_otp_memory() -> Arc<RwLock<OTPMemory>> {
+  Arc::new(RwLock::new(HashMap::new()))
 }

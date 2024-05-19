@@ -1,18 +1,21 @@
+use std::sync::Arc;
+
 use jsonwebtoken::EncodingKey;
 use sqlx::PgPool;
 use warp::Filter;
 
-use crate::{auth::header::with_auth, db::with_db, OTPCodes};
+use crate::{auth::header::with_auth, db::with_db};
+use crate::auth::otp::OtpCodes;
 
 use super::api;
 
 pub fn routes(
   db_pool: &PgPool,
-  otp_codes: OTPCodes,
-  key: EncodingKey,
+  otp_codes: OtpCodes,
+  key: Arc<EncodingKey>,
 ) -> impl Filter<Extract=impl warp::Reply, Error=warp::Rejection> + Clone {
   let otp_codes = warp::any().map(move || otp_codes.clone());
-  let jwt_key = warp::any().map(move || key.clone());
+  let jwt_key = warp::any().map(move || Arc::clone(&key));
 
   let info = warp::path!("info")
     .and(warp::get())
