@@ -44,6 +44,3 @@ fn serialize_websocket_message() {
     data: WebSocketData::Identify { token: "token".into() },
   }).unwrap());
 }
-
-#[test]
-fn deserialize_websocket_messge() {}

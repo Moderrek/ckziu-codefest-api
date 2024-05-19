@@ -38,6 +38,7 @@ mod upload;
 mod user;
 mod utils;
 mod gateway;
+mod prelude;
 
 #[cfg(test)]
 mod test;

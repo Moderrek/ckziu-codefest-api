@@ -11,6 +11,8 @@ use warp::reply::json;
 use project::db;
 
 use crate::{error, project, WebResult};
+use crate::error::Error;
+use crate::prelude::web_err;
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 use crate::user::api::is_authorized;
@@ -41,21 +43,17 @@ pub struct FullProjectResponse {
   pub tournament: bool,
 }
 
+// GET v1/projects
 pub async fn new_projects(db_pool: PgPool) -> WebResult<impl Reply> {
   match db::get_newest_projects(&db_pool).await {
     Ok(projects) => {
-      return Ok(json(&projects));
+      Ok(json(&projects))
     }
     Err(err) => {
       warn!("Error getting newest projects: {err}");
-      return Err(reject::custom(error::Error::ServerProblem));
+      web_err(Error::ServerProblem)
     }
   }
-}
-
-// GET v1/projects
-pub async fn list_projects(db_pool: PgPool) -> WebResult<impl Reply> {
-  Ok("LIST")
 }
 
 // GET v1/projects/USER_NAME/PROJECT_NAME
