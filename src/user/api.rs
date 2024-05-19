@@ -1,6 +1,5 @@
-use log::info;
-use log::warn;
 use sqlx::PgPool;
+use tracing::{info, warn};
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;

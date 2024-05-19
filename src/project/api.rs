@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
-use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use sqlx::prelude::FromRow;
+use tracing::{info, warn};
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;

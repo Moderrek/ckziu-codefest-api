@@ -3,7 +3,6 @@ use warp::{Rejection, Reply};
 
 pub type WebResult<T> = Result<T, Rejection>;
 
-
 pub fn web_err<T>(err: crate::error::Error) -> WebResult<T> {
   Err(warp::reject::custom(err))
 }

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use chrono::{Duration, Utc};
 use jsonwebtoken::EncodingKey;
-use log::{debug, info, warn};
 use sqlx::PgPool;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
@@ -88,7 +88,7 @@ pub async fn login_credentials(addr: Option<SocketAddr>, db: PgPool, key: Arc<En
   };
 
   if !is_authorized {
-    info!("The {} tried to authorize {}({})", addr_to_string(&addr), &body.login, uuid);
+    info!("Peer '{}' failed to login as '{}'({})", addr_to_string(&addr), &body.login, uuid);
     return web_json(&LoginResponse {
       token: None,
       name: None,

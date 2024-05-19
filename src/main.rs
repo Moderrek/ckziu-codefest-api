@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use dotenv::dotenv;
 use jsonwebtoken::EncodingKey;
-use log::{error, info, warn};
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing::{error, info, warn};
 
 use error::Error;
 
@@ -38,8 +37,12 @@ mod test;
 
 #[tokio::main]
 async fn main() -> Result<(), error::Error> {
+  let file_appender = tracing_appender::rolling::hourly("logs/", "api.log");
+  let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
   tracing_subscriber::fmt()
-    .with_span_events(FmtSpan::CLOSE)
+    .with_writer(non_blocking)
+    .with_ansi(false)
+    .with_thread_ids(true)
     .init();
 
   info!("Starting CKZiU CodeFest Backend API Server v0.9");

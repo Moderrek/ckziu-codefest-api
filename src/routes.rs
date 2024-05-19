@@ -98,24 +98,22 @@ pub fn routes(key: Arc<EncodingKey>, news: Arc<Vec<CkziuNews>>, otp_codes: OtpCo
     .allow_methods(vec!["POST", "GET", "PATCH", "DELETE"]);
 
   // Combine all routes
-  let routes =
-    version1
-      .and(
-        auth.or(projects)
-          .or(users)
-          .or(panel)
-          .or(get_avatar)
-          .or(upload_avatar)
-          .or(update_user_bio)
-          .or(update_user_displayname)
-          .or(status)
-          .or(ckziu_news)
-          .or(profile_get)
-      )
-      .or(gateway)
-      .or(status)
-      .recover(error::handle_rejection)
-      .with(cors);
-
-  routes
+  version1
+    .and(
+      auth.or(projects)
+        .or(users)
+        .or(panel)
+        .or(get_avatar)
+        .or(upload_avatar)
+        .or(update_user_bio)
+        .or(update_user_displayname)
+        .or(status)
+        .or(ckziu_news)
+        .or(profile_get)
+    )
+    .or(gateway)
+    .or(status)
+    .recover(error::handle_rejection)
+    .with(cors)
+  // .with(warp::trace::request())
 }

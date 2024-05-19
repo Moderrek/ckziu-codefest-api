@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
-use log::{info, warn};
 use serde::Serialize;
 use sqlx::PgPool;
+use tracing::{info, warn};
 use uuid::Uuid;
 use warp::{reject, reply::{json, Reply}};
 

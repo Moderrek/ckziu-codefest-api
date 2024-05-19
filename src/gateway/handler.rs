@@ -1,5 +1,5 @@
 use futures::{stream::SplitSink, StreamExt};
-use log::{error, info};
+use tracing::{error, info};
 use warp::filters::ws::{Message, WebSocket};
 
 pub async fn handle_client(websocket: warp::ws::WebSocket) {
