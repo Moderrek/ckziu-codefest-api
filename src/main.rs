@@ -31,6 +31,7 @@ mod utils;
 mod gateway;
 mod prelude;
 mod routes;
+mod posts;
 
 #[cfg(test)]
 mod test;

@@ -67,7 +67,7 @@ FROM projects
     INNER JOIN users ON projects.owner_id = users.id
 WHERE projects.private = false
 ORDER BY updated_at DESC
-LIMIT 4";
+LIMIT 6";
   let result: Vec<FullProjectResponse> = sqlx::query_as(query).fetch_all(pool).await?;
 
   Ok(result)
