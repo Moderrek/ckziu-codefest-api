@@ -96,6 +96,14 @@ pub async fn create_post(
     // Reject if user is not authenticated
     let user_id = auth.ok_or(Error::Unauthorized)?;
 
+    // Reject post content if it is empty or too long (over 240 characters)
+    if post.content.is_empty() || post.content.len() > 240 {
+        return Ok(reply::with_status(
+            reply::json(&json!({ "success": false, "message": "Invalid content" })),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
+    }
+
     // Perform insert
     sqlx::query(
         r#"
