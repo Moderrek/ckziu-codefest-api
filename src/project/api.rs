@@ -1,25 +1,23 @@
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_milliseconds;
-use log::{info, warn};
-use reqwest::StatusCode;
-use serde::{de, Deserialize, Serialize};
-use sqlx::prelude::FromRow;
-use sqlx::Execute;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use sqlx::Postgres;
-use sqlx::QueryBuilder;
+use sqlx::prelude::FromRow;
+use tracing::{info, warn};
 use uuid::Uuid;
 use warp::{reject, Reply};
 use warp::reply::json;
 
 use project::db;
 
-use crate::{current_millis, error, project, WebResult};
+use crate::{error, project, WebResult};
+use crate::error::Error;
+use crate::prelude::{web_err, web_json};
 use crate::project::models::Project;
 use crate::project::responses::PostProjectBody;
 use crate::user::api::is_authorized;
+use crate::utils::{current_millis, validate_description, validate_display_name, validate_name};
 
-use super::{validate_description, validate_display_name, validate_name};
 use super::responses::PostProjectResponse;
 
 #[derive(Serialize, FromRow)]
@@ -45,14 +43,13 @@ pub struct FullProjectResponse {
   pub tournament: bool,
 }
 
+// GET v1/projects
 pub async fn new_projects(db_pool: PgPool) -> WebResult<impl Reply> {
   match db::get_newest_projects(&db_pool).await {
-    Ok(projects) => {
-      return Ok(json(&projects));
-    }
+    Ok(projects) => web_json(&projects),
     Err(err) => {
       warn!("Error getting newest projects: {err}");
-      return Err(reject::custom(error::Error::ServerProblem));
+      web_err(Error::ServerProblem)
     }
   }
 }
@@ -113,7 +110,7 @@ pub async fn delete_project(username: String, project_name: String, user_uid: Op
   }
   let user_id = user_uid.unwrap();
 
-  // Remove from database
+  // Remove from db
   match db::delete_project(&user_id, &project_name, &db_pool).await {
     Ok(_) => (),
     Err(err) => {
@@ -260,7 +257,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
     updated_at: Utc::now(),
   };
 
-  // Upload to database
+  // Upload to db
   let create_start = current_millis();
   match db::create_project(&project, &db_pool).await {
     Ok(_) => {

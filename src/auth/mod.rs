@@ -6,3 +6,4 @@ pub mod req;
 pub mod header;
 pub mod otp;
 pub mod jwt;
+pub mod routes;

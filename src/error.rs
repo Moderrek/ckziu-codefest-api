@@ -72,6 +72,11 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infallible> 
       StatusCode::METHOD_NOT_ALLOWED,
       "Method Not Allowed".to_string(),
     )
+  } else if err.find::<warp::reject::InvalidQuery>().is_some() {
+    (
+      StatusCode::BAD_REQUEST,
+      "Invalid Query".to_string(),
+    )
   } else {
     eprintln!("unhandled error: {:?}", err);
     (

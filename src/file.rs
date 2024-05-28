@@ -1,5 +1,5 @@
-use log::warn;
 use sqlx::PgPool;
+use tracing::warn;
 use warp::{reject, Reply};
 
 use db::get_user_avatar_url;

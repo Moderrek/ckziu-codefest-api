@@ -4,11 +4,12 @@ use uuid::Uuid;
 use crate::auth::models::AuthUser;
 use crate::user::models::User;
 
-const IS_USER_EXISTS_QUERY: &str = r"SELECT auth.id FROM auth INNER JOIN users ON auth.id = users.id WHERE users.name = $1 or auth.mail = $1 LIMIT 1";
+const IS_USER_EXISTS_QUERY: &str = r"SELECT auth.id FROM auth INNER JOIN users ON auth.id = users.id WHERE users.name = $1 or auth.mail = $2 LIMIT 1";
 
-pub async fn is_user_exists(login: &String, pool: &PgPool) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn is_user_exists(name: &String, mail: &String, pool: &PgPool) -> Result<bool, Box<dyn std::error::Error>> {
   let optional = sqlx::query(IS_USER_EXISTS_QUERY)
-    .bind(login)
+    .bind(name)
+    .bind(mail)
     .fetch_optional(pool)
     .await?;
 

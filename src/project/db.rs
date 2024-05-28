@@ -1,4 +1,3 @@
-use log::info;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -68,7 +67,7 @@ FROM projects
     INNER JOIN users ON projects.owner_id = users.id
 WHERE projects.private = false
 ORDER BY updated_at DESC
-LIMIT 4";
+LIMIT 6";
   let result: Vec<FullProjectResponse> = sqlx::query_as(query).fetch_all(pool).await?;
 
   Ok(result)
@@ -198,14 +197,12 @@ pub async fn patch_project(owner_id: &Uuid, patch: PatchProject, projectname: &S
     }
   }
   if let Some(tournament) = patch.tournament {
-    info!("Tournament");
     let query = r"UPDATE projects SET tournament = false WHERE owner_id = $1";
     sqlx::query(query)
       .bind(owner_id)
       .execute(&mut *transaction)
       .await?;
     if tournament {
-      info!("YES");
       let query = r"UPDATE projects SET tournament = true WHERE name = $1";
       sqlx::query(query)
         .bind(projectname)

@@ -1,5 +1,5 @@
 use jsonwebtoken::{Algorithm, decode, DecodingKey, Validation};
-use log::info;
+use tracing::info;
 use uuid::Uuid;
 use warp::{Filter, Rejection};
 use warp::header::headers_cloned;
