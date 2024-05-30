@@ -4,7 +4,7 @@ use reply::json;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Decode, FromRow, PgPool};
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 use warp::{reply, Reply};
 
@@ -34,6 +34,19 @@ pub struct PostWithOwner {
     #[serde(with = "ts_milliseconds")]
     pub created_at: DateTime<Utc>,
     pub likes: i32,
+    #[serde(rename = "liked")]
+    pub is_liked_by_user: bool,
+}
+
+#[derive(Serialize, Deserialize, FromRow)]
+pub struct PostWithLiked {
+    pub id: i32,
+    pub content: String,
+    #[serde(with = "ts_milliseconds")]
+    pub created_at: DateTime<Utc>,
+    pub likes: i32,
+    #[serde(rename = "liked")]
+    pub is_liked_by_user: bool,
 }
 
 #[derive(Serialize, Deserialize, FromRow, Decode)]
@@ -45,18 +58,47 @@ pub struct PostOwner {
     pub flags: i32,
 }
 
-pub async fn get_posts(db_pool: PgPool) -> WebResult<impl Reply> {
-    let posts: Vec<(i32, String, DateTime<Utc>, i32, Uuid, String, String, i32)> = sqlx::query_as(
-    r#"
-    SELECT posts.id, posts.content, posts.created_at, posts.likes, users.id as "owner.id", users.name as "owner.name", users.display_name as "owner.display_name", users.flags as "owner.flags"
-    FROM posts
-    JOIN users ON posts.owner_id = users.id
-    ORDER BY posts.created_at DESC
-    "#,
-  )
+pub async fn get_posts(user_uid: Option<Uuid>, db_pool: PgPool) -> WebResult<impl Reply> {
+    type PostTuple = (
+        i32,
+        String,
+        DateTime<Utc>,
+        i32,
+        Uuid,
+        String,
+        String,
+        i32,
+        bool,
+    );
+
+    let posts: Vec<PostTuple> = sqlx::query_as(
+            r#"
+            SELECT
+                posts.id,
+                posts.content,
+                posts.created_at,
+                posts.likes, 
+
+                users.id as "owner.id", 
+                users.name as "owner.name",
+                users.display_name as "owner.display_name",
+                users.flags as "owner.flags",
+
+                EXISTS(SELECT 1 FROM posts_likes WHERE post_id = posts.id AND $1 IS NOT NULL AND user_id = $1) as "liked"
+
+            FROM posts
+            JOIN users ON posts.owner_id = users.id
+            
+            ORDER BY posts.created_at DESC
+            "#,
+    )
+    .bind(user_uid)
     .fetch_all(&db_pool)
     .await
-    .map_err(|_| Error::ServerProblem)?;
+    .map_err(|err| {
+        warn!("Failed to fetch posts: {err}");
+        Error::ServerProblem
+    })?;
 
     let posts = posts
         .into_iter()
@@ -70,6 +112,7 @@ pub async fn get_posts(db_pool: PgPool) -> WebResult<impl Reply> {
                 owner_name,
                 owner_display_name,
                 owner_flags,
+                liked,
             )| PostWithOwner {
                 id,
                 content,
@@ -81,6 +124,7 @@ pub async fn get_posts(db_pool: PgPool) -> WebResult<impl Reply> {
                 },
                 created_at,
                 likes,
+                is_liked_by_user: liked,
             },
         )
         .collect::<Vec<_>>();
@@ -88,41 +132,48 @@ pub async fn get_posts(db_pool: PgPool) -> WebResult<impl Reply> {
     Ok(json(&posts))
 }
 
+// Reject if user is not authenticated
 pub async fn create_post(
     auth: Option<Uuid>,
     post: CreatePost,
     db_pool: PgPool,
 ) -> WebResult<impl Reply> {
-    // Reject if user is not authenticated
     let user_id = auth.ok_or(Error::Unauthorized)?;
 
+    let post = CreatePost {
+        content: post.content.trim().to_string(),
+    };
+
     // Reject post content if it is empty or too long (over 240 characters)
-    if post.content.is_empty() || post.content.len() > 240 {
+    if post.content.is_empty() || post.content.chars().count() > 240 {
         return Ok(reply::with_status(
-            reply::json(&json!({ "success": false, "message": "Invalid content" })),
+            reply::json(&json!({ "success": false, "message": "Nieprawidłowa długość" })),
             warp::http::StatusCode::BAD_REQUEST,
         ));
     }
 
     // Perform insert
-    sqlx::query(
+    let created_post: PostWithLiked = sqlx::query_as(
         r#"
     INSERT INTO posts (owner_id, content)
     VALUES ($1, $2)
+    RETURNING *, false as "is_liked_by_user"
     "#,
     )
-    .bind(&user_id)
+    .bind(user_id)
     .bind(&post.content)
-    .execute(&db_pool)
+    .fetch_one(&db_pool)
     .await
     .map_err(|err| {
         warn!("Failed to create post: {err}");
         Error::ServerProblem
     })?;
 
-    // Operation success
+    info!("Post created: {} by {}", created_post.id, user_id);
+
+    // Operation success, return the created post
     Ok(reply::with_status(
-        reply::json(&json!({ "success": true })),
+        reply::json(&created_post),
         warp::http::StatusCode::CREATED,
     ))
 }
@@ -139,7 +190,7 @@ pub async fn set_like_post(
     SELECT EXISTS(SELECT 1 FROM posts WHERE id = $1)
     "#,
     )
-    .bind(&post_uid)
+    .bind(post_uid)
     .fetch_one(&db_pool)
     .await
     .map_err(|err| {
@@ -150,7 +201,7 @@ pub async fn set_like_post(
     // Reject if post does not exist
     if !post_exists {
         return Ok(reply::with_status(
-            reply::json(&json!({ "success": false, "message": "Post does not exist" })),
+            reply::json(&json!({ "success": false, "message": "Wpis nie istnieje" })),
             warp::http::StatusCode::NOT_FOUND,
         ));
     }
@@ -161,8 +212,8 @@ pub async fn set_like_post(
     SELECT EXISTS(SELECT 1 FROM posts_likes WHERE post_id = $1 AND user_id = $2)
     "#,
     )
-    .bind(&post_uid)
-    .bind(&user_uid)
+    .bind(post_uid)
+    .bind(user_uid)
     .fetch_one(&db_pool)
     .await
     .map_err(|err| {
@@ -174,7 +225,7 @@ pub async fn set_like_post(
     if liked {
         if already_liked {
             return Ok(reply::with_status(
-                reply::json(&json!({ "success": false, "message": "Already liked" })),
+                reply::json(&json!({ "success": false, "message": "Już polubiono" })),
                 warp::http::StatusCode::CONFLICT,
             ));
         }
@@ -185,8 +236,8 @@ pub async fn set_like_post(
       VALUES ($1, $2)
       "#,
         )
-        .bind(&post_uid)
-        .bind(&user_uid)
+        .bind(post_uid)
+        .bind(user_uid)
         .execute(&db_pool)
         .await
         .map_err(|err| {
@@ -202,7 +253,7 @@ pub async fn set_like_post(
       WHERE id = $1
       "#,
         )
-        .bind(&post_uid)
+        .bind(post_uid)
         .execute(&db_pool)
         .await
         .map_err(|err| {
@@ -212,7 +263,7 @@ pub async fn set_like_post(
     } else {
         if !already_liked {
             return Ok(reply::with_status(
-                reply::json(&json!({ "success": false, "message": "Not liked" })),
+                reply::json(&json!({ "success": false, "message": "Nie polubiono" })),
                 warp::http::StatusCode::CONFLICT,
             ));
         }
@@ -223,8 +274,8 @@ pub async fn set_like_post(
       WHERE post_id = $1 AND user_id = $2
       "#,
         )
-        .bind(&post_uid)
-        .bind(&user_uid)
+        .bind(post_uid)
+        .bind(user_uid)
         .execute(&db_pool)
         .await
         .map_err(|err| {
@@ -240,7 +291,7 @@ pub async fn set_like_post(
       WHERE id = $1
       "#,
         )
-        .bind(&post_uid)
+        .bind(post_uid)
         .execute(&db_pool)
         .await
         .map_err(|err| {
@@ -248,9 +299,12 @@ pub async fn set_like_post(
             Error::ServerProblem
         })?;
     }
+
+    info!("Post {post_uid} like status to {liked} changed by {user_uid}");
+
     // Operation success
     Ok(reply::with_status(
-        reply::json(&json!({ "success": true })),
+        reply::json(&json!({ "success": true, "message": "Operacja zakończona pomyślnie"})),
         warp::http::StatusCode::OK,
     ))
 }
@@ -265,4 +319,54 @@ pub async fn unlike_post(
     db_pool: PgPool,
 ) -> WebResult<impl Reply> {
     set_like_post(auth.ok_or(Error::Unauthorized)?, post_id, db_pool, false).await
+}
+
+pub async fn delete_post(post_id: i32, auth: Option<Uuid>, db_pool: PgPool) -> WebResult<impl Reply> {
+    let user_id = auth.ok_or(Error::Unauthorized)?;
+
+    // Check if post exists
+    let post_exists: bool = sqlx::query_scalar(
+        r#"
+    SELECT EXISTS(SELECT 1 FROM posts WHERE id = $1 AND owner_id = $2)
+    "#,
+    )
+    .bind(post_id)
+    .bind(user_id)
+    .fetch_one(&db_pool)
+    .await
+    .map_err(|err| {
+        warn!("Failed to check is post exists: {err}");
+        Error::ServerProblem
+    })?;
+
+    // Reject if post does not exist
+    if !post_exists {
+        return Ok(reply::with_status(
+            reply::json(&json!({ "success": false, "message": "Wpis nie istnieje" })),
+            warp::http::StatusCode::NOT_FOUND,
+        ));
+    }
+
+    // Delete post
+    sqlx::query(
+        r#"
+    DELETE FROM posts
+    WHERE id = $1
+    "#,
+    )
+    .bind(post_id)
+    .execute(&db_pool)
+    .await
+    .map_err(|err| {
+        warn!("Failed to delete post: {err}");
+        Error::ServerProblem
+    })?;
+
+    info!("Post deleted: {post_id} by {user_id}");
+
+    // Operation success
+    Ok(reply::with_status(
+        reply::json(&json!({ "success": true, "message": "Wpis został usunięty"})),
+        warp::http::StatusCode::OK,
+    ))
 }

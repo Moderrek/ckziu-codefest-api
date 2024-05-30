@@ -2,8 +2,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::posts::api::Post;
-use crate::project::models::Project;
+use crate::posts::api::PostWithLiked;
+use crate::project::models::ProjectCard;
 use crate::user::models::User;
 use crate::user::responses::ProfileResponse;
 
@@ -80,27 +80,40 @@ pub async fn get_user_by_id(
 }
 
 pub async fn get_profile(
+    receiver: Option<Uuid>,
     username: &String,
     is_authorized: bool,
     pool: &PgPool,
 ) -> Result<Option<ProfileResponse>, Box<dyn std::error::Error>> {
     let query = "SELECT * FROM users WHERE name = $1 LIMIT 1";
-    let query_projects = "SELECT tournament, content, projects.github_url, projects.website_url, projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, users.id AS userid, users.name AS username  FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 AND (projects.private = false OR projects.private = $2) ORDER BY projects.updated_at DESC";
-    let query_posts = "SELECT posts.id, posts.owner_id, posts.content, posts.created_at, posts.likes FROM posts INNER JOIN users ON posts.owner_id = users.id WHERE users.name = $1 ORDER BY posts.updated_at DESC";
+    let query_projects = "SELECT tournament, projects.id, projects.name, projects.display_name, projects.owner_id, projects.private, projects.description, projects.likes, projects.created_at, projects.updated_at, users.id AS userid, users.name AS username  FROM projects INNER JOIN users ON projects.owner_id = users.id WHERE users.name = $1 AND (projects.private = false OR projects.private = $2) ORDER BY projects.updated_at DESC";
+    let query_posts = r#"
+    SELECT
+      posts.id, 
+      posts.owner_id,
+      posts.content,
+      posts.created_at,
+      posts.likes,
+      EXISTS(SELECT 1 FROM posts_likes WHERE post_id = posts.id AND $2 IS NOT NULL AND user_id = $2) as "is_liked_by_user"
+    FROM posts
+    INNER JOIN users ON posts.owner_id = users.id
+    WHERE users.name = $1
+    ORDER BY posts.updated_at DESC"#;
 
     let result: Option<User> = sqlx::query_as(query)
         .bind(username)
         .fetch_optional(pool)
         .await?;
 
-    let projects: Vec<Project> = sqlx::query_as(query_projects)
+    let projects: Vec<ProjectCard> = sqlx::query_as(query_projects)
         .bind(username)
         .bind(is_authorized)
         .fetch_all(pool)
         .await?;
 
-    let posts: Vec<Post> = sqlx::query_as(query_posts)
+    let posts: Vec<PostWithLiked> = sqlx::query_as(query_posts)
         .bind(username)
+        .bind(receiver)
         .fetch_all(pool)
         .await?;
 
