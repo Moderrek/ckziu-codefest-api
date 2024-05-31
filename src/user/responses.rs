@@ -3,10 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use models::Project;
-
-use crate::posts::api::{Post, PostWithLiked};
-use crate::project::models::{self, ProjectCard};
+use crate::posts::api::PostWithLiked;
+use crate::project::models::ProjectCard;
 
 #[derive(Serialize)]
 pub struct ProfileResponse {

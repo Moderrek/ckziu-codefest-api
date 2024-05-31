@@ -9,7 +9,6 @@ use dotenv::dotenv;
 use jsonwebtoken::EncodingKey;
 use tracing::{error, info, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 use error::Error;
 
