@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "ckziu-codefest-api"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bcrypt",
  "bytes",

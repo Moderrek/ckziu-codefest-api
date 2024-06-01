@@ -20,6 +20,7 @@ pub fn routes(
     let list = warp::path!("posts")
         .and(warp::get())
         .and(warp::path::end())
+        .and(with_auth())
         .and(with_db(db_pool.clone()))
         .and_then(api::get_posts);
 
@@ -36,6 +37,13 @@ pub fn routes(
         .and(with_auth())
         .and(with_db(db_pool.clone()))
         .and_then(api::unlike_post);
+
+    let delete = warp::path!("posts" / i32)
+        .and(warp::delete())
+        .and(warp::path::end())
+        .and(with_auth())
+        .and(with_db(db_pool.clone()))
+        .and_then(api::delete_post);
 
     //
     // let get = warp::path!("posts" / Uuid)
@@ -56,5 +64,5 @@ pub fn routes(
     //   .or(list)
     //   .or(post)
     // .or(delete)
-    list.or(post).or(like).or(unlike)
+    list.or(post).or(like).or(unlike).or(delete)
 }

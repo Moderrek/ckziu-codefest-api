@@ -9,7 +9,6 @@ use dotenv::dotenv;
 use jsonwebtoken::EncodingKey;
 use tracing::{error, info, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::fmt::SubscriberBuilder;
 
 use error::Error;
 
@@ -34,6 +33,7 @@ mod scrap;
 mod upload;
 mod user;
 mod utils;
+mod contest;
 
 #[cfg(test)]
 mod test;

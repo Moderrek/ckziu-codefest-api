@@ -95,7 +95,7 @@ pub async fn get_profile(username: String, auth: Option<Uuid>, db_pool: PgPool) 
 
   let is_authorized = is_authorized(&auth, &username, &db_pool).await;
 
-  match db::get_profile(&username, is_authorized, &db_pool).await {
+  match db::get_profile(auth, &username, is_authorized, &db_pool).await {
     Ok(response) => {
       if let Some(profile) = response {
         return Ok(json(&profile));

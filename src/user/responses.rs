@@ -3,10 +3,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use models::Project;
-
-use crate::posts::api::Post;
-use crate::project::models;
+use crate::posts::api::PostWithLiked;
+use crate::project::models::ProjectCard;
 
 #[derive(Serialize)]
 pub struct ProfileResponse {
@@ -16,8 +14,8 @@ pub struct ProfileResponse {
 
     pub bio: Option<String>,
 
-    pub projects: Vec<Project>,
-    pub posts: Vec<Post>,
+    pub projects: Vec<ProjectCard>,
+    pub posts: Vec<PostWithLiked>,
 
     #[serde(with = "ts_milliseconds")]
     pub created_at: DateTime<Utc>,
