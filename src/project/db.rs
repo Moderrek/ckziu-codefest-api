@@ -5,6 +5,7 @@ use crate::project::api::PatchProject;
 use crate::project::models::Project;
 
 use super::api::FullProjectResponse;
+use super::models::{ContestProject, ProjectCard};
 
 pub async fn delete_project(owner_id: &Uuid, project_name: &String, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
   let query = r"DELETE FROM projects USING users WHERE projects.owner_id = $1 AND projects.name = $2";
@@ -69,6 +70,36 @@ WHERE projects.private = false
 ORDER BY updated_at DESC
 LIMIT 6";
   let result: Vec<FullProjectResponse> = sqlx::query_as(query).fetch_all(pool).await?;
+
+  Ok(result)
+}
+
+
+pub async fn get_contest_projects(pool: &PgPool) -> Result<Vec<ContestProject>, Box<dyn std::error::Error>> {
+  let query = r#"
+  SELECT
+    projects.id,
+    projects.name,
+    projects.display_name,
+
+
+    projects.owner_id as "owner_id",
+    users.name as "owner_name",
+    users.display_name as "owner_display_name",
+    
+    projects.description,
+
+    projects.votes,
+    projects.created_at,
+    projects.updated_at
+
+  FROM projects
+  INNER JOIN users ON projects.owner_id = users.id
+  WHERE projects.tournament = true AND private = false
+  ORDER BY projects.created_at DESC
+  "#;
+
+  let result: Vec<ContestProject> = sqlx::query_as(query).fetch_all(pool).await?;
 
   Ok(result)
 }

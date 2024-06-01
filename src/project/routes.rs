@@ -21,6 +21,12 @@ pub fn routes(db_pool: &PgPool) -> impl Filter<Extract=impl warp::Reply, Error=w
     .and(with_db(db_pool.clone()))
     .and_then(api::new_projects);
 
+  let get_contest = warp::path("contestprojects")
+    .and(warp::get())
+    .and(warp::path::end())
+    .and(with_db(db_pool.clone()))
+    .and_then(api::contest_projects);
+
   let get = warp::path!("projects" / String / String)
     .and(warp::get())
     .and(warp::path::end())
@@ -49,4 +55,5 @@ pub fn routes(db_pool: &PgPool) -> impl Filter<Extract=impl warp::Reply, Error=w
     .or(post)
     .or(patch)
     .or(delete)
+    .or(get_contest)
 }

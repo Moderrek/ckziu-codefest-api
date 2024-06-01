@@ -33,6 +33,7 @@ mod scrap;
 mod upload;
 mod user;
 mod utils;
+mod contest;
 
 #[cfg(test)]
 mod test;

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use chrono::serde::ts_milliseconds;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -49,6 +49,17 @@ pub async fn new_projects(db_pool: PgPool) -> WebResult<impl Reply> {
     Ok(projects) => web_json(&projects),
     Err(err) => {
       warn!("Error getting newest projects: {err}");
+      web_err(Error::ServerProblem)
+    }
+  }
+}
+
+// GET v1/contestprojects
+pub async fn contest_projects(db_pool: PgPool) -> WebResult<impl Reply> {
+  match db::get_contest_projects(&db_pool).await {
+    Ok(projects) => web_json(&projects),
+    Err(err) => {
+      warn!("Error getting contest projects: {err}");
       web_err(Error::ServerProblem)
     }
   }
@@ -125,9 +136,27 @@ pub async fn delete_project(username: String, project_name: String, user_uid: Op
 // PATCH v1/projects/USER_NAME/PROJECT_NAME
 pub async fn patch_project(username: String, project_name: String, user_uid: Option<Uuid>, mut patch: PatchProject, db_pool: PgPool) -> WebResult<impl Reply> {
   let authorized = is_authorized(&user_uid, &username, &db_pool).await;
+
+  // Reject unauthorized with project owner
   if !authorized {
     return Err(reject::custom(error::Error::Unauthorized));
   }
+  let user_uid = user_uid.ok_or(error::Error::Unauthorized)?;
+
+  // Check if the project is a tournament project
+  if patch.tournament.unwrap_or(false) {
+    // Check if the current date is after the deadline
+    let now = Utc::now();
+    if now.day() >= 1 && now.month() >= 6 {
+      return Ok(json(&PostProjectResponse {
+        success: false,
+        created: false,
+        message: "Termin zgłaszania projektów minął 1 czerwca!".into(),
+      }));
+    }
+  }
+
+  // Check if there is any data to update
   if patch.display_name.is_none() && patch.private.is_none() && patch.description.is_none() && patch.content.is_none() && patch.github_url.is_none() && patch.website_url.is_none() && patch.tournament.is_none() {
     return Ok(json(&PostProjectResponse {
       success: true,
@@ -136,6 +165,7 @@ pub async fn patch_project(username: String, project_name: String, user_uid: Opt
     }));
   }
 
+  // Validate display name
   if patch.display_name.is_some() {
     patch.display_name = match validate_display_name(patch.display_name.unwrap()) {
       Ok(display_name) => Some(display_name),
@@ -149,6 +179,7 @@ pub async fn patch_project(username: String, project_name: String, user_uid: Opt
     };
   }
 
+  // Validate description
   if patch.description.is_some() {
     patch.description = match validate_description(patch.description) {
       Ok(description) => description,
@@ -161,16 +192,17 @@ pub async fn patch_project(username: String, project_name: String, user_uid: Opt
       }
     };
   }
-  let user_uid = user_uid.unwrap();
+
+  // Perform update
   match db::patch_project(&user_uid, patch, &project_name, &db_pool).await {
     Ok(_) => {}
     Err(err) => {
-      warn!("{err}");
+      warn!("Database failed to update project: {err}");
       return Err(reject::custom(error::Error::ServerProblem));
     }
   };
 
-
+  // Return success
   Ok(json(&PostProjectResponse {
     success: true,
     created: true,
@@ -184,6 +216,7 @@ pub async fn create_project(user_uid: Option<Uuid>, body: PostProjectBody, db_po
   if user_uid.is_none() {
     return Err(reject::custom(error::Error::Unauthorized));
   }
+
   // Validate
   let project_name = match validate_name(body.name) {
     Ok(name) => name,
